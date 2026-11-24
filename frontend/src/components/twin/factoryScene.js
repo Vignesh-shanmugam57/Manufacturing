@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { LEVELS, LEVEL_COLOR } from "../../lib/twin.js";
-import { BUILDINGS, CONSUMERS, HALL, PIPES, PLACE, UTIL_COLOR, homeFor } from "./factoryLayout.js";
+import { BUILDINGS, CONSUMERS, HALL, PIPES, PLACE, UTIL_COLOR, homeFor, walkRoute } from "./factoryLayout.js";
 
 const hex = (s) => parseInt(s.slice(1), 16);
 const LV = LEVEL_COLOR.map(hex);                          // normal, warning, major, critical, offline
@@ -346,13 +346,22 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
     const l = makeLabel("Control room"); l.position.set(CR.x, 7, CR.z); scene.add(l);
   }
   const resp = new THREE.Group(); resp.visible = false;
+  const limbs = {};
   {
-    const suit = std(0x2563eb, { emissive: 0x1d4ed8, emissiveIntensity: 0.55, roughness: 0.5, metalness: 0.1 });
-    cyl(resp, 0.5, 0.62, 1.7, suit, 0, 1.15, 0);
-    sph(resp, 0.42, std(0xfde68a, { roughness: 0.6, metalness: 0 }), 0, 2.35, 0);
-    sph(resp, 0.5, std(0xf59e0b, { emissive: 0xb45309, emissiveIntensity: 0.4 }), 0, 2.5, 0, 1, 0.8, 1, true);
+    const suit = std(0x2563eb, { emissive: 0x1d4ed8, emissiveIntensity: 0.45, roughness: 0.55, metalness: 0.05 });
+    const dark = std(0x1e293b, { roughness: 0.7, metalness: 0.05 });
+    const skin = std(0xf1c9a5, { roughness: 0.7, metalness: 0 });
+    const vest = std(0xf97316, { emissive: 0xc2410c, emissiveIntensity: 0.35, roughness: 0.6, metalness: 0 });
+    const limb = (name, x, y, w, h, mat) => { const g = new THREE.Group(); g.position.set(x, y, 0); cyl(g, w, w * 0.9, h, mat, 0, -h / 2, 0); resp.add(g); limbs[name] = g; };
+    limb("legL", -0.22, 1.0, 0.2, 1.0, dark); limb("legR", 0.22, 1.0, 0.2, 1.0, dark);
+    box(resp, 0.9, 1.1, 0.5, suit, 0, 1.55, 0);                                  // torso
+    box(resp, 0.95, 0.75, 0.55, vest, 0, 1.6, 0);                                // high-visibility vest
+    limb("armL", -0.62, 2.0, 0.14, 0.95, suit); limb("armR", 0.62, 2.0, 0.14, 0.95, suit);
+    sph(resp, 0.3, skin, 0, 2.42, 0);                                            // head
+    sph(resp, 0.36, std(0xfacc15, { emissive: 0xa16207, emissiveIntensity: 0.4, roughness: 0.5, metalness: 0 }), 0, 2.5, 0, 1, 0.8, 1, true);   // hard hat
     const halo = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.2, 32), new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
-    halo.rotation.x = -Math.PI / 2; halo.position.y = 0.1; resp.add(halo);
+    halo.rotation.x = -Math.PI / 2; halo.position.y = 0.1; resp.add(halo); limbs.halo = halo;
+    resp.scale.setScalar(1.05);
     scene.add(resp);
   }
   const respLabel = document.createElement("div"); respLabel.className = "f-resp"; respLabel.style.display = "none"; labelRoot.appendChild(respLabel);
@@ -368,8 +377,10 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
   let response = null;
   const WALK_MS = 8000;
   function walkPath(it) {
-    const q = it.group.position, tx = q.x - 2.8, tz = q.z + 3.2;
-    return [[CR.x, CR.door], [CR.x, CR.aisle], [tx, CR.aisle], [tx, tz]];
+    const route = walkRoute(it.e.id);
+    if (route) return route;
+    const q = it.group.position;                                   // equipment without a mapped walkway: aisle, then straight in
+    return [[CR.x, CR.door], [CR.x, CR.aisle], [q.x - 2.8, CR.aisle], [q.x - 2.8, q.z + 3.2]];
   }
   function along(path, u) {
     const seg = path.slice(1).map((p, i) => Math.hypot(p[0] - path[i][0], p[1] - path[i][1])), total = seg.reduce((a, b) => a + b, 0);
@@ -391,9 +402,11 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
     else if (r.phase === "returning") { u = 1 - clamp((now - r.returnStart) / WALK_MS, 0, 1); moving = u > 0; }
     const [px, pz, heading] = along(path, u);
     const hasPerson = !!r.name;
-    resp.visible = hasPerson; resp.position.set(px, 0.25 + (moving ? Math.abs(Math.sin(t * 9)) * 0.18 : 0), pz);
+    resp.visible = hasPerson; resp.position.set(px, 0.25 + (moving ? Math.abs(Math.sin(t * 8)) * 0.07 : 0), pz);
     if (moving) resp.rotation.y = r.phase === "returning" ? heading + Math.PI : heading;
-    resp.children[3].material.opacity = 0.55 + 0.35 * Math.sin(t * 4);
+    limbs.halo.material.opacity = 0.55 + 0.35 * Math.sin(t * 4);
+    const sw = moving ? Math.sin(t * 8) * 0.7 : 0;
+    limbs.legL.rotation.x = sw; limbs.legR.rotation.x = -sw; limbs.armL.rotation.x = -sw * 0.8; limbs.armR.rotation.x = sw * 0.8;
     const at = (o, y = 0.32) => { o.position.set(q.x, y, q.z); return o; };
     if (["detected", "notified", "walking", "working"].includes(r.phase)) {
       const k = (t * 0.7) % 1, p = at(fx.pulse); p.visible = true; p.scale.setScalar(rad * (1 + k * 2.4)); p.material.opacity = 0.85 * (1 - k);

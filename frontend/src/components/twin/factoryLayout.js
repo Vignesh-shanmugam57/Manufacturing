@@ -65,3 +65,57 @@ export function homeFor(aspect) {
   const [px, py, pz] = CAMERA_HOME.pos;
   return { pos: [tx + (px - tx) * k, ty + (py - ty) * k, tz + (pz - tz) * k], target: CAMERA_HOME.target };
 }
+
+// Walkways: where a person can walk without going through equipment, pipes' supports or buildings.
+// Nodes are points on the aisles; edges join neighbours; STAND says where a person stands beside each machine and which node leads there.
+export const WALK_NODES = {
+  door: [-10, -24], A: [-10, -18], EW: [-2, -18], HA: [-38, -18], HB: [-16, -18],
+  K1: [8, -18], K2: [15, -18], K3: [22.5, -18], S1: [33, -18], SH: [37, -18], S2: [41, -18], B: [45, -18], B2: [48, -18],
+  P0: [50.8, -18], PM1: [54, -18], CP: [58, -18], PM2: [62, -18],
+  I1: [50.8, -27.5], I2: [62, -27.5],
+  K1f: [8, -27.5], K2f: [15, -27.5], K3f: [22.5, -27.5], S1f: [33, -27.5], S2f: [41, -27.5],
+  C0: [45, -0.5], T1: [56, -0.5], T2: [64, -0.5],
+  C1: [45, 16.5], WT2: [28, 16.5], WT1: [18, 16.5],
+  C2: [45, 25.2], G1: [55, 25.2], G2: [63, 25.2],
+  C3: [45, 32.5], WP: [26.5, 32.5], WM: [26.5, 27.5],
+  HE: [-2, 31], H2: [-16, 31], H1: [-42, 31],
+};
+export const WALK_EDGES = [
+  ["door", "A"], ["HA", "HB"], ["HB", "A"], ["A", "EW"], ["EW", "K1"], ["K1", "K2"], ["K2", "K3"], ["K3", "S1"], ["S1", "SH"], ["SH", "S2"], ["S2", "B"], ["B", "B2"], ["B2", "P0"],
+  ["P0", "PM1"], ["PM1", "CP"], ["CP", "PM2"], ["P0", "I1"], ["I1", "I2"],
+  ["K1", "K1f"], ["K2", "K2f"], ["K3", "K3f"], ["S1", "S1f"], ["S2", "S2f"],
+  ["B", "C0"], ["C0", "T1"], ["T1", "T2"], ["C0", "C1"], ["C1", "WT2"], ["WT2", "WT1"], ["C1", "C2"], ["C2", "G1"], ["G1", "G2"],
+  ["C2", "C3"], ["C3", "WP"], ["WP", "WM"], ["EW", "HE"], ["HE", "H2"], ["H2", "H1"],
+];
+export const STAND = {
+  "CA-CMP-01": "K1f", "CA-CMP-02": "K2f", "CA-RCV-01": "K3f", "CA-HDR-A": "HA", "CA-HDR-B": "HB",
+  "ST-BLR-01": "S1f", "ST-BLR-02": "S2f", "ST-HDR-01": "SH",
+  "CW-CHL-01": "I1", "CW-CHL-02": "I2", "CW-PMP-01": "PM1", "CW-PMP-02": "PM2",
+  "CT-TWR-01": "T1", "CT-TWR-02": "T2", "CT-PMP-01": "CP",
+  "HV-AHU-01": "H1", "HV-AHU-02": "H2",
+  "WT-TNK-01": "WT1", "WT-TNK-02": "WT2", "WT-PMP-01": "WP", "WT-MTR-01": "WM",
+  "GS-SKD-01": "G2", "GS-MTR-01": "G1",
+};
+
+/** Shortest walk from the control-room door to the spot beside an equipment, as [[x, z], ...] along the walkways. */
+export function walkRoute(equipId) {
+  const goal = STAND[equipId];
+  if (!goal) return null;
+  const adj = {};
+  WALK_EDGES.forEach(([a, b]) => {
+    const d = Math.hypot(WALK_NODES[a][0] - WALK_NODES[b][0], WALK_NODES[a][1] - WALK_NODES[b][1]);
+    (adj[a] ||= []).push([b, d]); (adj[b] ||= []).push([a, d]);
+  });
+  const dist = { door: 0 }, prev = {}, todo = new Set(Object.keys(WALK_NODES));
+  while (todo.size) {
+    let u = null;
+    todo.forEach((n) => { if (dist[n] !== undefined && (u === null || dist[n] < dist[u])) u = n; });
+    if (u === null || u === goal) break;
+    todo.delete(u);
+    (adj[u] || []).forEach(([v, d]) => { if (dist[v] === undefined || dist[u] + d < dist[v]) { dist[v] = dist[u] + d; prev[v] = u; } });
+  }
+  if (dist[goal] === undefined) return null;
+  const out = [];
+  for (let n = goal; n; n = prev[n]) out.unshift(WALK_NODES[n]);
+  return out;
+}
