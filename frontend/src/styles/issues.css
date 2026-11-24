@@ -1,0 +1,65 @@
+/* Issues board: what went wrong, where, who has to go, how long it has been open, what to do. Tokens only. */
+.iss-page { display: flex; flex-direction: column; gap: 14px; }
+.iss-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.iss-tile { padding: 12px 14px; border-radius: var(--radius-sm); background: rgb(var(--surface-rgb)); border: 1px solid rgba(var(--line-rgb), .1); }
+.iss-tile b { display: block; font-size: 24px; font-weight: 750; line-height: 1.1; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.iss-tile span { display: block; margin-top: 3px; font-size: 12px; color: var(--text-secondary); }
+.iss-tile.hot b { color: var(--status-alarm); }
+
+.iss-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.iss-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--muted-fill); }
+.iss-seg button, .iss-chip { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; padding: 5px 14px; border-radius: 999px; cursor: pointer; }
+.iss-seg button[aria-pressed="true"] { background: rgb(var(--surface-rgb)); color: var(--text-primary); box-shadow: 0 1px 4px rgba(var(--shadow-rgb), .15); }
+.iss-chip { border: 1px solid rgba(var(--line-rgb), .18); padding: 4px 12px; font-size: 12.5px; }
+.iss-chip[aria-pressed="true"] { background: var(--text-primary); color: rgb(var(--surface-rgb)); border-color: transparent; }
+.iss-bar select { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(var(--line-rgb), .18); background: rgb(var(--surface-rgb)); color: var(--text-primary); }
+.iss-bar .iss-sort { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+
+.iss-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); gap: 14px; align-items: start; }
+.iss-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.iss-row { --sev: #facc15; display: grid; grid-template-columns: 6px minmax(0, 1fr) 132px; text-align: left; font: inherit; color: inherit; padding: 0; cursor: pointer;
+  background: rgb(var(--surface-rgb)); border: 1px solid rgba(var(--line-rgb), .1); border-radius: 12px; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.iss-row[data-sev="MAJOR"] { --sev: #f97316; }
+.iss-row[data-sev="CRITICAL"] { --sev: #ef4444; }
+.iss-row:hover { border-color: rgba(var(--line-rgb), .3); }
+.iss-row[aria-pressed="true"] { border-color: var(--brand-blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-blue) 18%, transparent); }
+.iss-row:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
+.iss-sev { background: var(--sev); }
+.iss-main { padding: 11px 14px; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.iss-t1 { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.iss-title { font-size: 14.5px; font-weight: 700; line-height: 1.3; }
+.iss-pill { font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--muted-fill); color: var(--text-secondary); white-space: nowrap; }
+.iss-pill.bad { background: color-mix(in srgb, var(--status-alarm) 14%, transparent); color: var(--status-alarm); }
+.iss-pill.ok { background: color-mix(in srgb, var(--status-normal) 16%, transparent); color: var(--status-normal); }
+.iss-meta { display: flex; flex-wrap: wrap; gap: 3px 16px; font-size: 12.5px; color: var(--text-secondary); }
+.iss-meta b { font-weight: 650; color: var(--text-primary); }
+.iss-do { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
+.iss-do b { color: var(--text-primary); font-weight: 650; }
+.iss-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--status-normal); }
+.iss-dot.off { background: var(--status-warning); }
+.iss-timer { padding: 11px 12px; text-align: right; background: var(--kg-bg-3); border-left: 1px solid rgba(var(--line-rgb), .08); display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.iss-timer b { font-size: 19px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.iss-timer span { font-size: 11.5px; color: var(--text-secondary); line-height: 1.3; }
+.iss-timer.late b { color: var(--status-alarm); }
+
+.iss-detail { position: sticky; top: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.iss-detail h3 { margin: 0; font-size: 17px; line-height: 1.3; }
+.iss-detail h4 { margin: 0 0 5px; font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
+.iss-detail p { margin: 0 0 6px; font-size: 13px; line-height: 1.55; color: var(--text-secondary); }
+.iss-detail p b { color: var(--text-primary); font-weight: 650; }
+.iss-sec { padding-top: 10px; border-top: 1px solid rgba(var(--line-rgb), .08); }
+.iss-tl { list-style: none; margin: 0; padding: 0; }
+.iss-tl li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 5px 0; font-size: 12.5px; border-bottom: 1px solid rgba(var(--line-rgb), .06); }
+.iss-tl li:last-child { border: 0; }
+.iss-tl em { font-style: normal; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.iss-tl small { display: block; color: var(--text-muted); font-size: 11.5px; }
+.iss-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.iss-acts textarea { width: 100%; min-height: 56px; resize: vertical; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid rgba(var(--line-rgb), .2); background: rgb(var(--surface-rgb)); color: var(--text-primary); }
+.iss-acts select { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(var(--line-rgb), .2); background: rgb(var(--surface-rgb)); color: var(--text-primary); max-width: 100%; }
+.iss-err { color: var(--status-alarm); font-size: 12.5px; margin: 0; }
+.iss-suggest { padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--status-warning) 14%, transparent); font-size: 12.5px; color: var(--text-primary); }
+.iss-empty { padding: 28px; text-align: center; color: var(--text-secondary); }
+
+@media (max-width: 1100px) { .iss-layout { grid-template-columns: minmax(0, 1fr); } .iss-detail { position: static; } }
+@media (max-width: 560px) { .iss-row { grid-template-columns: 6px minmax(0, 1fr); } .iss-timer { grid-column: 1 / -1; text-align: left; border-left: 0; border-top: 1px solid rgba(var(--line-rgb), .08); } }

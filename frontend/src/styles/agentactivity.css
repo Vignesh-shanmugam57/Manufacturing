@@ -1,0 +1,44 @@
+/* Agent activity: what the agent did, and how it worked out one issue. Tokens only. */
+.aa-page { display: flex; flex-direction: column; gap: 14px; }
+.aa-tabs { display: inline-flex; align-self: flex-start; padding: 3px; border-radius: 999px; background: var(--muted-fill); }
+.aa-tabs button { border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 5px 16px; border-radius: 999px; cursor: pointer; }
+.aa-tabs button[aria-pressed="true"] { background: rgb(var(--surface-rgb)); color: var(--text-primary); box-shadow: 0 1px 4px rgba(var(--shadow-rgb), .15); }
+.aa-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.aa-tile { padding: 12px 14px; border-radius: var(--radius-sm); background: rgb(var(--surface-rgb)); border: 1px solid rgba(var(--line-rgb), .1); }
+.aa-tile b { display: block; font-size: 24px; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.aa-tile span { display: block; margin-top: 3px; font-size: 12px; color: var(--text-secondary); }
+.aa-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; align-items: start; }
+.aa-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.aa-card h3 { margin: 0; font-size: 15px; }
+
+.aa-feed { list-style: none; margin: 0; padding: 0; max-height: 620px; overflow: auto; }
+.aa-feed button { width: 100%; display: grid; grid-template-columns: 58px 12px minmax(0, 1fr); gap: 8px; text-align: left; padding: 9px 6px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: inherit; cursor: pointer; }
+.aa-feed button:hover { background: var(--kg-bg-3); }
+.aa-feed button[aria-pressed="true"] { background: color-mix(in srgb, var(--brand-blue) 12%, transparent); }
+.aa-feed li { border-bottom: 1px solid rgba(var(--line-rgb), .07); }
+.aa-feed li:last-child { border: 0; }
+.aa-feed time { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.aa-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; background: var(--brand-blue); }
+.aa-dot.escalated, .aa-dot.failed { background: var(--status-alarm); }
+.aa-dot.raised, .aa-dot.cleared { background: var(--status-warning); }
+.aa-dot.verified { background: var(--status-normal); }
+.aa-feed b { display: block; font-size: 13px; font-weight: 650; line-height: 1.35; }
+.aa-feed span { display: block; font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; }
+
+.aa-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.aa-steps { list-style: none; margin: 0; padding: 0; }
+.aa-steps li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding-bottom: 12px; position: relative; }
+.aa-steps li::before { content: ""; position: absolute; left: 11px; top: 24px; bottom: -2px; width: 1px; background: rgba(var(--line-rgb), .2); }
+.aa-steps li:last-child { padding-bottom: 0; }
+.aa-steps li:last-child::before { display: none; }
+.aa-n { width: 23px; height: 23px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--status-normal) 18%, transparent); color: var(--status-normal); }
+.aa-n.wait { background: color-mix(in srgb, var(--status-warning) 20%, transparent); color: var(--status-warning); }
+.aa-steps b { font-size: 13.5px; font-weight: 650; }
+.aa-steps p { margin: 1px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
+.aa-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.aa-table th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); padding: 4px 6px; border-bottom: 1px solid rgba(var(--line-rgb), .1); }
+.aa-table td { padding: 5px 6px; border-bottom: 1px solid rgba(var(--line-rgb), .06); }
+.aa-note { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.aa-empty { padding: 20px; text-align: center; color: var(--text-secondary); }
+
+@media (max-width: 1000px) { .aa-grid { grid-template-columns: minmax(0, 1fr); } }

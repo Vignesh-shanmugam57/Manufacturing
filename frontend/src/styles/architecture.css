@@ -1,0 +1,106 @@
+/* Architecture page: an auto-playing flow on the left, the current step on the right. Tokens only, so light and dark both work. */
+.arch-flow { flex: none; display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 0; padding: 0; overflow: visible;
+  background: rgb(var(--surface-rgb)); }
+.arch-diagram { padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.arch-lane-label { margin: 0 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+
+.arch-row { display: flex; align-items: stretch; }
+.arch-only-narrow { display: none; }
+
+/* nodes: teal = system, purple = the agent, grey = a person */
+.arch-node { --tone: var(--chart-c4); --tone-soft: color-mix(in srgb, var(--chart-c4) 13%, rgb(var(--surface-rgb)));
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  padding: 11px 12px 12px; border-radius: 12px; border: 1.5px solid color-mix(in srgb, var(--tone) 42%, transparent);
+  background: var(--tone-soft); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer;
+  opacity: .82; transition: opacity .2s, transform .25s, box-shadow .25s, border-color .2s; }
+.arch-node[data-kind="agent"] { --tone: var(--depth-1); --tone-soft: color-mix(in srgb, var(--depth-1) 13%, rgb(var(--surface-rgb))); }
+.arch-node[data-kind="person"] { --tone: var(--muted-ink); --tone-soft: var(--kg-bg-3); }
+.arch-node:hover { opacity: 1; }
+.arch-node:focus-visible { outline: 2px solid var(--tone); outline-offset: 2px; opacity: 1; }
+.arch-node[aria-current="step"] { opacity: 1; transform: translateY(-3px); border-color: var(--tone);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 20%, transparent), 0 12px 26px rgba(var(--shadow-rgb), .2); }
+.arch-no { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800;
+  color: var(--on-accent); background: var(--tone); }
+.arch-title { font-size: 15px; font-weight: 700; line-height: 1.2; }
+.arch-metric { font-size: 12px; font-weight: 600; color: var(--text-secondary); line-height: 1.3; overflow-wrap: anywhere; }
+
+/* arrows between nodes, with a moving dot on the arrow into the current step */
+.arch-link { flex: 0 0 34px; align-self: center; position: relative; height: 2px; border-radius: 2px; background: rgba(var(--line-rgb), .22); }
+.arch-link::after { content: ""; position: absolute; right: -1px; top: 50%; width: 7px; height: 7px; border-top: 2px solid currentColor; border-right: 2px solid currentColor;
+  transform: translateY(-50%) rotate(45deg); color: rgba(var(--line-rgb), .38); }
+.arch-link.on { background: linear-gradient(90deg, var(--chart-c4), var(--depth-1)); }
+.arch-link.on::after { color: var(--depth-1); }
+.arch-dot { position: absolute; left: 0; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--brand-blue); opacity: 0; }
+.arch-link.on .arch-dot { opacity: 1; animation: arch-dot-x .8s ease-in-out infinite; }
+@keyframes arch-dot-x { from { transform: translateX(0); } to { transform: translateX(26px); } }
+
+/* SCADA, BMS, PLC: a dashed box in the row that would feed Sources once it is connected */
+.arch-src-off { flex: 0 0 120px; display: flex; align-items: center; justify-content: center; padding: 8px; text-align: center;
+  border: 1.5px dashed rgba(var(--line-rgb), .36); border-radius: 12px; color: var(--text-muted); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.arch-link.dash { background: repeating-linear-gradient(90deg, rgba(var(--line-rgb), .4) 0 4px, transparent 4px 8px); }
+
+/* connector from the AI agent (top right) down to Detect (bottom left) */
+.arch-elbow { --c: rgba(var(--line-rgb), .24); position: relative; height: 50px; margin-left: calc((100% - 170px) / 12); margin-right: calc((100% - 256px) / 8); margin-bottom: 4px; }
+.arch-elbow::before { content: ""; position: absolute; left: 0; right: 0; top: 56%; height: 2px; border-radius: 2px; background: var(--c); }
+.arch-elbow i { position: absolute; width: 2px; background: var(--c); }
+.arch-elbow i:first-child { right: 0; top: 0; height: 56%; }
+.arch-elbow i:last-child { left: 0; top: 56%; bottom: 0; }
+.arch-elbow i:last-child::after { content: ""; position: absolute; left: -3px; bottom: 0; width: 7px; height: 7px; border-right: 2px solid var(--c); border-bottom: 2px solid var(--c); transform: translateY(1px) rotate(45deg); }
+.arch-elbow span { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--text-muted); transition: color .2s; }
+.arch-elbow.on { --c: var(--depth-1); }
+.arch-elbow.on span { color: var(--depth-1); }
+
+.arch-return { margin: -4px 4% 0; padding: 7px 12px 0; text-align: center; font-size: 12px; font-weight: 600; color: var(--text-muted);
+  border: 2px solid rgba(var(--line-rgb), .16); border-top: 0; border-radius: 0 0 14px 14px; transition: color .2s, border-color .2s; }
+.arch-return.on { color: var(--depth-1); border-color: var(--depth-1); }
+
+.arch-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 16px; font-size: 12px; color: var(--text-secondary); }
+.arch-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; background: var(--chart-c4); }
+.arch-legend i[data-kind="agent"] { background: var(--depth-1); }
+.arch-legend i[data-kind="person"] { background: var(--muted-ink); }
+.arch-legend em { margin-left: auto; font-style: normal; color: var(--text-muted); }
+
+.arch-timer { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px; margin-top: 12px; }
+.arch-seg { height: 5px; border-radius: 999px; background: var(--muted-fill); overflow: hidden; padding: 0; border: 0; cursor: pointer; }
+.arch-seg i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--chart-c4), var(--depth-1)); }
+.arch-seg.done i { width: 100%; }
+.arch-seg.cur i { animation: arch-fill var(--arch-ms, 3000ms) linear forwards; }
+@keyframes arch-fill { from { width: 0; } to { width: 100%; } }
+
+/* the current step */
+.arch-detail { display: flex; flex-direction: column; gap: 10px; padding: 22px; min-width: 0; border-left: 1px solid rgba(var(--line-rgb), .1);
+  background: var(--kg-bg-2); border-radius: 0 var(--radius) var(--radius) 0; animation: arch-in .22s ease; }
+@keyframes arch-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.arch-count { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.arch-headline { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.arch-headline h3 { margin: 0; font-size: 22px; }
+.arch-badge { padding: 3px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--chart-c4); background: color-mix(in srgb, var(--chart-c4) 14%, transparent); }
+.arch-badge[data-kind="agent"] { color: var(--depth-1); background: color-mix(in srgb, var(--depth-1) 13%, rgb(var(--surface-rgb))); }
+.arch-badge[data-kind="person"] { color: var(--text-secondary); background: var(--muted-fill); }
+.arch-what { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+.arch-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.arch-stat { padding: 10px 12px; border-radius: var(--radius-sm); background: rgb(var(--surface-rgb)); border: 1px solid rgba(var(--line-rgb), .1); }
+.arch-stat b { display: block; font-size: 19px; font-weight: 750; line-height: 1.15; color: var(--text-primary); overflow-wrap: break-word; word-break: normal; hyphens: none; }
+.arch-stat b.long { font-size: 15px; line-height: 1.25; }
+.arch-stat span { display: block; margin-top: 3px; font-size: 12px; color: var(--text-secondary); line-height: 1.35; }
+.arch-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: auto; padding-top: 4px; }
+
+@media (max-width: 1150px) {
+  .arch-flow { grid-template-columns: minmax(0, 1fr); }
+  .arch-detail { border-left: 0; border-top: 1px solid rgba(var(--line-rgb), .1); border-radius: 0 0 var(--radius) var(--radius); }
+}
+@media (max-width: 900px) {
+  /* narrow screens: steps wrap into a compact grid */
+  .arch-row { flex-wrap: wrap; gap: 10px; }
+  .arch-node { flex: 1 1 calc(33.333% - 10px); min-width: 110px; }
+  .arch-link, .arch-return, .arch-elbow { display: none; }
+  .arch-src-off { flex: 1 1 100%; }
+  .arch-only-narrow { display: block; }
+  .arch-diagram > div + div { margin-top: 18px; }
+  .arch-node[aria-current="step"] { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arch-node, .arch-elbow span, .arch-return { transition: none; }
+  .arch-link.on .arch-dot, .arch-detail { animation: none; }
+  .arch-seg.cur i { animation: none; width: 100%; }
+}

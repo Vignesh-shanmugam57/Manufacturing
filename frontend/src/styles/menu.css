@@ -1,0 +1,6 @@
+/* Sidebar: a collapsible group for the technical pages. */
+.nav-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 10px; background: transparent; border: 0; cursor: pointer; text-align: left; font-family: inherit; }
+.nav-toggle:hover { color: var(--text-secondary); }
+.nav-toggle:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 2px; border-radius: 6px; }
+.nav-toggle svg { transition: transform .2s; }
+.nav-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }

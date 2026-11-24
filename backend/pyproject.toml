@@ -1,0 +1,31 @@
+[project]
+name = "utilities-agent"
+version = "0.1.0"
+description = "Utilities Management Agent (LangChain + Domo AI) - keep plant utilities reliable and efficient"
+requires-python = ">=3.14"
+dependencies = [
+    "cryptography>=50.0.2",
+    "fastapi>=0.162.4",
+    "httpx>=0.28.1",
+    "langchain-core>=1.7.7",
+    "pg8000>=1.31.6",
+    "psycopg[binary]>=3.3.8",
+    "pydantic-settings>=2.16.2",
+    "pymysql>=1.2.4",
+    "python-multipart>=0.0.33",
+    "python-tds>=1.17.1",
+    "sqlalchemy>=2",
+    "sqlalchemy-pytds>=1.0.3",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# langsmith (a langchain-core dependency) still calls asyncio.iscoroutinefunction on Python 3.14
+filterwarnings = ["ignore::DeprecationWarning:langsmith.*"]
