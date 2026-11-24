@@ -774,12 +774,44 @@ class Engine:
         self._kpi_cache = (now, out)
         return out
 
+    FIX_RAMP_S = 30.0
+
+    def _effective(self) -> tuple[dict, dict, dict]:
+        """What every screen reads: live values, tag levels and equipment levels, with open demo (MOCK) issues applied on top so
+        the map, inspector, trends and overview show the same reading as the issue. The reading eases back to live over
+        30 s after the fix is recorded, and the override ends when the issue is verified. Call with the lock held. Detectors
+        keep using the raw values, so nothing is raised twice."""
+        values, tag_lv, eq_lv = dict(self.values), {t: l for t, l in self.levels.items() if l}, dict(self.eq_level)
+        now = dt.datetime.now()
+        for a in self.alerts.values():
+            if a.get("source") != "MOCK" or a["status"] == "VERIFIED":
+                continue
+            w = 1.0
+            if a["status"] == "CORRECTIVE_ACTION":
+                fix = next((e["ts"] for e in reversed(a["events"]) if e["action"] == "corrective_action"), None)
+                if fix:
+                    w = max(0.0, 1.0 - (now - dt.datetime.fromisoformat(fix)).total_seconds() / self.FIX_RAMP_S)
+            if w <= 0:
+                continue
+            for ev in a.get("evidence") or []:
+                tag, v = ev.get("tag"), ev.get("value")
+                if tag not in values or v is None:
+                    continue
+                values[tag] = values[tag] + (float(v) - values[tag]) * w
+                lvl = {"CRITICAL": 3, "MAJOR": 2, "WARNING": 1}.get(a["severity"], 0) if w >= 1 else cat.level_of(tag, values[tag])   # an open issue shows at its own severity
+                if lvl > tag_lv.get(tag, 0):
+                    tag_lv[tag] = lvl
+                e = cat.SPEC[tag][0]
+                if eq_lv.get(e.id, 0) != 4 and lvl > eq_lv.get(e.id, 0):
+                    eq_lv[e.id] = lvl
+        return values, tag_lv, eq_lv
+
     def snapshot(self) -> dict:
         with self.lock:
-            tag_levels = {t: l for t, l in self.levels.items() if l}
+            values, tag_levels, eq_level = self._effective()
             return {
                 "ts": dt.datetime.now().isoformat(timespec="seconds"), "mode": self.mode, "source": self.source_label,
-                "scenario": self.sim.state(), "values": dict(self.values), "levels": dict(self.eq_level),
+                "scenario": self.sim.state(), "values": values, "levels": eq_level,
                 "tag_levels": tag_levels, "version": self.version,
                 "alerts": {"active": sum(1 for a in self.alerts.values() if a["status"] != "VERIFIED"),
                            "critical": sum(1 for a in self.alerts.values() if a["status"] != "VERIFIED" and a["severity"] == "CRITICAL"),
@@ -801,6 +833,13 @@ class Engine:
                     if ts >= cutoff:
                         buckets[int(ts // step)].append(v)
                 out[tag] = [[b * step * 1000, round(statistics.fmean(vs), 3)] for b, vs in sorted(buckets.items())]
+            with self.lock:                                         # a reading held by an open demo issue is drawn as that reading
+                held = self._effective()[0]
+                for a in self.alerts.values():
+                    if a.get("source") == "MOCK" and a["status"] != "VERIFIED":
+                        for ev in a.get("evidence") or []:
+                            if ev.get("tag") in out and out[ev["tag"]] and abs(held[ev["tag"]] - self.values[ev["tag"]]) > 1e-9:
+                                out[ev["tag"]] = [[t, round(held[ev["tag"]], 3)] for t, _ in out[ev["tag"]]]
             return out
         since = dt.datetime.now() - dt.timedelta(minutes=minutes)
         with SessionLocal() as s:
@@ -816,11 +855,12 @@ class Engine:
         if e is None:
             raise ActionError(f"Unknown equipment '{eid}'.")
         with self.lock:
+            values, tag_lv, eq_lv = self._effective()
             sensors = []
             for s in e.sensors:
                 tag = e.tag(s.key)
                 sensors.append({"key": s.key, "tag": tag, "label": s.label, "unit": s.unit, "decimals": s.decimals,
-                                "value": self.values.get(tag), "level": self.levels[tag], "cumulative": s.cumulative,
+                                "value": values.get(tag), "level": tag_lv.get(tag, 0), "cumulative": s.cumulative,
                                 "normal": None if s.cumulative else cat.band_text(tag, "normal"),
                                 "warn": None if s.cumulative else cat.band_text(tag, "warn"),
                                 "crit": None if s.cumulative else cat.band_text(tag, "crit")})
@@ -831,8 +871,8 @@ class Engine:
             m = self.meta[eid]
             rt = next((x["value"] for x in sensors if x["key"] == "runtime_h"), None)
             return {"id": e.id, "name": e.name, "utility": e.utility, "category": e.category, "zone": e.zone,
-                    "criticality": e.criticality, "consumers": list(e.consumers), "standby": e.standby, "level": self.eq_level[eid],
-                    "status": cat.LEVELS[self.eq_level[eid]], "runtime_h": rt, "sensors": sensors,
+                    "criticality": e.criticality, "consumers": list(e.consumers), "standby": e.standby, "level": eq_lv[eid],
+                    "status": cat.LEVELS[eq_lv[eid]], "runtime_h": rt, "sensors": sensors,
                     "last_maintenance": _iso(m["last_maintenance"]), "next_maintenance": _iso(m["next_maintenance"]),
                     "maintenance_interval_days": e.maintenance_interval_days,
                     "alerts": [{k: a[k] for k in ("id", "code", "severity", "status", "title", "created_at", "recommendation", "probable_cause", "certainty")} for a in alerts[:10]],
@@ -842,13 +882,14 @@ class Engine:
     def equipment_list(self) -> list[dict]:
         """One row per equipment for the Equipment page: status, runtime, maintenance dates and open alarm count."""
         with self.lock:
+            values, _tl, eq_lv = self._effective()
             out = []
             for e in cat.EQUIPMENT:
                 m = self.meta[e.id]
                 open_alerts = [a for a in self.alerts.values()
                                if a["status"] != "VERIFIED" and (a["equipment_id"] == e.id or any(t.startswith(e.id + ".") for t in a.get("sensors") or []))]
-                out.append({"id": e.id, "level": self.eq_level[e.id], "status": cat.LEVELS[self.eq_level[e.id]],
-                            "runtime_h": self.values.get(e.tag("runtime_h")),
+                out.append({"id": e.id, "level": eq_lv[e.id], "status": cat.LEVELS[eq_lv[e.id]],
+                            "runtime_h": values.get(e.tag("runtime_h")),
                             "last_maintenance": _iso(m["last_maintenance"]), "next_maintenance": _iso(m["next_maintenance"]),
                             "maintenance_due": m["next_maintenance"] <= dt.date.today() + dt.timedelta(days=14),
                             "alarms": len(open_alerts)})

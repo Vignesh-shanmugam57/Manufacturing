@@ -178,3 +178,53 @@ def test_a_reading_above_its_limit_shows_up_as_such_not_as_a_usage_change(eng):
     assert use.usage(eng, "STEAM")["signal"] is None
     air = use.usage(eng, "COMPRESSED_AIR")                         # a real usage problem keeps its usage story and also gets its reading
     assert air["today"][-1] > air["normal"][air["now_hour"]]["hi"] and air["signal"]["points"]
+
+
+# ------------------------------------------------------------------ one set of facts on every screen
+def _open_gas(eng):
+    return next(a for a in eng.alerts.values() if a["utility"] == "GAS" and a["source"] == "MOCK" and a["status"] != "VERIFIED")
+
+
+def test_every_screen_reports_the_same_counts_and_readings(eng):
+    from app.agent import plant_tools as pt
+    from app.twin import usage as use
+    eng.reload_from_db()
+    n = len(iss.list_issues(eng, "open"))
+    snap = eng.snapshot()
+    assert n == iss.summary(eng)["open"] == use.overview(eng)["open"] == snap["alerts"]["active"]
+    assert n == len(eng.list_alerts("active"))
+    assert f'"open_issues":{n}' in pt.get_plant_status.invoke({})
+    # the map, the inspector and the overview show the reading recorded on the issue
+    a = _open_gas(eng)
+    ev = a["evidence"][0]
+    assert snap["values"][ev["tag"]] == pytest.approx(ev["value"])
+    detail = eng.equipment_detail(cat.SPEC[ev["tag"]][0].id)
+    assert next(s for s in detail["sensors"] if s["tag"] == ev["tag"])["value"] == pytest.approx(ev["value"])
+    assert detail["level"] >= 3 and snap["levels"][detail["id"]] >= 3
+
+
+def test_closing_an_issue_clears_it_everywhere(eng):
+    from app.twin import usage as use
+    eng.reload_from_db()
+    a = _open_gas(eng)
+    aid, tag = a["id"], a["evidence"][0]["tag"]
+    before = len(iss.list_issues(eng, "open"))
+    v0 = eng.version
+    eng.act(aid, "acknowledge", "Test")
+    eng.act(aid, "corrective_action", "Test", comment="Valve replaced")
+    Clock(eng).run(120)                                             # fresh readings, back inside the limit
+    eng.act(aid, "verify", "Test")
+    assert eng.alerts[aid]["status"] == "VERIFIED" and eng.version > v0
+    # counts drop together
+    assert len(iss.list_issues(eng, "open")) == before - 1 == iss.summary(eng)["open"] == use.overview(eng)["open"]
+    assert eng.snapshot()["alerts"]["active"] == before - 1 == len(eng.list_alerts("active"))
+    # the utility is back to normal on the overview, the usage note and the reading
+    gas = next(u for u in use.overview(eng)["utilities"] if u["utility"] == "GAS")
+    assert gas["open_issues"] == 0 and gas["level"] == 0
+    u = use.usage(eng, "GAS")
+    assert u["issue"] is None and u["signal"] is None
+    # the map and inspector no longer show the recorded reading
+    assert eng.snapshot()["values"][tag] == pytest.approx(eng.values[tag])
+    assert eng.equipment_detail(cat.SPEC[tag][0].id)["level"] < 3
+    # and the closed list now has it
+    assert aid in {r["id"] for r in iss.list_issues(eng, "closed", limit=1000)}

@@ -19,3 +19,4 @@ frontend/playwright-report/
 _backup/
 .claude/settings.local.json
 *.bak
+test-results/

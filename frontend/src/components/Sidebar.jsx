@@ -68,7 +68,7 @@ const MORE = [
 export default function Sidebar({
   user, view, onView, sessions, activeId, busy, onNewChat, onOpen, onRename, onDelete, onLogout, openAlerts, open,
 }) {
-  const attention = useTwinResource("/issues/summary").data?.needs_attention ?? 0;
+  const attention = useTwinResource("/issues/summary", 30000).data?.needs_attention ?? 0;
   const inMore = MORE.some((n) => n.id === view);
   const [moreOpen, setMoreOpen] = useState(inMore);
   useEffect(() => { if (inMore) setMoreOpen(true); }, [inMore]);      // opening one of these pages from a link shows its group

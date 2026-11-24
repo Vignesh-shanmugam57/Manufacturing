@@ -85,7 +85,7 @@ def _signal(a: dict, cur: int, today: dt.date) -> dict | None:
     for h in range(cur + 1):
         t = dt.datetime.combine(today, dt.time(h, 30))
         w = 0.0 if t < start else min(1.0, (t - start).total_seconds() / RAMP_S)
-        pts.append(round(mid + 0.04 * span * math.sin(h * 1.9 + 3) + (actual - mid) * w, dec))
+        pts.append(round(actual if h == cur else mid + 0.04 * span * math.sin(h * 1.9 + 3) + (actual - mid) * w, dec))   # the last point is the reading now
     return {"tag": tag, "label": f"{ev['equipment']}: {ev['label']}", "unit": ev["unit"], "lo": lo, "hi": hi, "actual": actual,
             "expected": cat.band_text(tag, "normal"), "points": pts, "since": a["created_at"], "level": ev.get("level", 0)}
 
@@ -143,7 +143,7 @@ def overview(eng: Engine) -> dict:
     for r in rows:
         by_u.setdefault(r["utility"], []).append(r)
     with eng.lock:
-        values, eq_level = dict(eng.values), dict(eng.eq_level)
+        values, _tl, eq_level = eng._effective()
     out = []
     for u in cat.UTILITIES:
         live = max([0] + [0 if eq_level.get(e.id, 0) == 4 else eq_level.get(e.id, 0) for e in cat.EQUIPMENT if e.utility == u])
@@ -159,6 +159,6 @@ def overview(eng: Engine) -> dict:
             "reading_label": issues[0]["where"]["equipment_name"] if issues else s.label,
             "worst_issue": {"id": issues[0]["id"], "title": issues[0]["title"]} if issues else None,
         })
-    attention = [{"id": r["id"], "title": r["title"], "severity": r["severity"], "zone": r["where"]["zone"], "who": r["who"]["name"],
+    attention = [{"id": r["id"], "code": r["code"], "title": r["title"], "severity": r["severity"], "zone": r["where"]["zone"], "who": r["who"]["name"],
                   "age_s": r["time"]["age_s"], "needs_attention": r["flags"]["needs_attention"]} for r in rows[:3]]
     return {"utilities": out, "attention": attention, "open": len(rows)}

@@ -278,3 +278,36 @@ test("mobile layout uses a slide-out menu and nothing overflows sideways", async
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
   await page.screenshot({ path: `${SHOTS}/12-mobile-overview.png`, fullPage: true });
 });
+
+test("closing an issue is reflected on every screen: list, summary, overview, plant map and the sidebar badge", async ({ page }) => {
+  test.setTimeout(300_000);
+  const email = await signIn(page, { name: "Morgan Closer" });
+  const { id } = await (await fetch(`${BASE}/api/users/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, name: "Morgan Closer", role: "Utilities engineer" }) })).json();
+  await fetch(`${BASE}/api/twin/mock/seed`, { method: "POST", headers: { "X-User-Id": id } });   // start from the same six open issues every time
+  await page.reload();
+  const rows = page.locator(".iss-row");
+  await expect(rows).toHaveCount(6, { timeout: 60_000 });
+  const gas = page.locator('.iss-row[data-sev="CRITICAL"]');
+  await expect(gas).toHaveCount(1);
+  await gas.click();
+  const detail = page.locator(".iss-detail");
+  const ack = detail.getByRole("button", { name: "Acknowledge" });
+  if (await ack.count()) { await ack.click(); await expect(ack).toHaveCount(0, { timeout: 30_000 }); }
+  await detail.getByRole("textbox", { name: "Note" }).fill("Regulator replaced and leak tested");
+  await detail.getByRole("button", { name: "Record the fix" }).click();
+  await expect(detail.locator(".iss-tl")).toContainText("Regulator replaced", { timeout: 90_000 });
+  // verification needs fresh, stable readings; keep asking until the system accepts it
+  await expect(async () => {
+    const vb = detail.getByRole("button", { name: "Verify with telemetry" });
+    if (await vb.count()) await vb.click({ timeout: 10_000 });
+    await expect(rows).toHaveCount(5, { timeout: 4_000 });
+  }).toPass({ timeout: 200_000, intervals: [5_000] });
+  await expect(page.locator(".iss-tile").first()).toContainText("5");              // the summary follows without a reload
+  await expect(page.locator('.iss-row[data-sev="CRITICAL"]')).toHaveCount(0);
+  await nav(page, /Plant overview/).click();
+  await expect(page.locator(".ov-ut", { hasText: "Gas" })).toContainText("All normal", { timeout: 30_000 });
+  await expect(page.locator('[aria-label="Needs attention"]')).not.toContainText("Gas");
+  await nav(page, /Plant map/).click();
+  await expect(page.locator(".topbar, header").first()).not.toContainText("Critical 1");
+  await page.screenshot({ path: `${SHOTS}/13-closed-everywhere.png`, fullPage: true });
+});

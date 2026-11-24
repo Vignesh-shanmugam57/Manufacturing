@@ -68,7 +68,7 @@ def get_plant_status() -> str:
     levels = ["Normal", "Warning", "Major", "Critical"]
     return _j({"as_of": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "open_issues": ov["open"],
                "utilities": [{"utility": u["label"], "status": levels[min(u["level"], 3)], "reading": u["reading"], "open_issues": u["open_issues"]} for u in ov["utilities"]],
-               "needs_attention_first": [{"code": a["id"], "title": a["title"], "severity": a["severity"], "zone": a["zone"], "owner": a["who"], "open_for": _ago(a["age_s"])} for a in ov["attention"]]})
+               "needs_attention_first": [{"code": a["code"], "title": a["title"], "severity": a["severity"], "zone": a["zone"], "owner": a["who"], "open_for": _ago(a["age_s"])} for a in ov["attention"]]})
 
 
 @tool

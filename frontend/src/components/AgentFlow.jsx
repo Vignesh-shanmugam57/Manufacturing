@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, twinApi } from "../api/client.js";
+import { useTwin } from "../lib/twin.js";
 import { cached, invalidate } from "../lib/cache.js";
 import { formatDateTime, number, toolLabel, utilityLabel } from "../lib/format.js";
 import StatusPill from "./StatusPill.jsx";
@@ -484,6 +485,23 @@ export default function AgentFlow({ onAlertsChanged }) {
     });
     return () => { current = false; };
   }, []);
+
+  // Steps 5 and 6 read the live issues, so they follow every change (acknowledged, fixed, closed) as it happens.
+  const version = useTwin((s) => s.snap?.version ?? 0);
+  useEffect(() => {
+    if (analysing || run.status === "running") return undefined;
+    let current = true;
+    Promise.allSettled(VIEWS.map((fn) => fn())).then((out) => {
+      if (!current) return;
+      setRes((prev) => {
+        const next = { ...prev };
+        out.forEach((o, k) => { if (o.status === "fulfilled") next[ANALYSIS.length + k] = o.value; });
+        return next;
+      });
+      setAnalysedAt(new Date());
+    });
+    return () => { current = false; };
+  }, [version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function runAgent() {
     if (run.status === "running") return;

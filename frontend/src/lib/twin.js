@@ -168,7 +168,7 @@ export function stopTwin() {
 
 // ----------------------------------------------------------------------------- data hooks
 /** A REST resource that refreshes when the server says something changed (alerts, tasks, notifications). */
-export function useTwinResource(path) {
+export function useTwinResource(path, pollMs = 0) {
   const version = useTwin((s) => s.snap?.version ?? 0);
   const [res, setRes] = useState({ data: null, loading: true, error: "" });
   const alive = useRef(true);
@@ -184,11 +184,15 @@ export function useTwinResource(path) {
     }
   }, [path]);
   useEffect(() => { reload(); }, [reload, version]);
+  // time-based facts (ages, overdue flags) change without any event, so refresh on a timer too
+  useEffect(() => { if (!pollMs) return undefined; const id = setInterval(reload, pollMs); return () => clearInterval(id); }, [reload, pollMs]);
   return { ...res, reload };
 }
 
 /** A REST resource polled on an interval (live equipment detail). */
 export function useTwinPoll(path, ms = 2000, enabled = true) {
+  const version = useTwin((s) => s.snap?.version ?? 0);
+  const lastPath = useRef(null);
   const [res, setRes] = useState({ data: null, loading: true, error: "" });
   useEffect(() => {
     if (!enabled || !path) return undefined;
@@ -201,11 +205,11 @@ export function useTwinPoll(path, ms = 2000, enabled = true) {
         if (alive) setRes((r) => ({ ...r, loading: false, error: r.data ? "" : e.message }));
       }
     };
-    setRes({ data: null, loading: true, error: "" });
+    if (lastPath.current !== path) { lastPath.current = path; setRes({ data: null, loading: true, error: "" }); }
     load();
     const id = setInterval(load, ms);
     return () => { alive = false; clearInterval(id); };
-  }, [path, ms, enabled]);
+  }, [path, ms, enabled, version]);
   return res;
 }
 

@@ -197,8 +197,8 @@ export default function Issues({ onGo }) {
   const [sev, setSev] = useState("ALL");
   const [zone, setZone] = useState("");
   const [selId, setSelId] = useState(null);
-  const list = useTwinResource(tab === "open" ? "/issues?status=open" : "/issues?status=closed&limit=40");
-  const sum = useTwinResource("/issues/summary");
+  const list = useTwinResource(tab === "open" ? "/issues?status=open" : "/issues?status=closed&limit=40", 30000);
+  const sum = useTwinResource("/issues/summary", 30000);
   const ppl = useTwinResource("/people");
   const nowMs = useNow();
   const fetchedAt = useMemo(() => Date.now(), [list.data]);       // eslint-disable-line react-hooks/exhaustive-deps
