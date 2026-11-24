@@ -174,6 +174,7 @@ export function useTwinResource(path, pollMs = 0) {
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const reload = useCallback(async () => {
+    if (!path) return null;
     try {
       const data = await twinApi.get(path);
       if (alive.current) setRes({ data, loading: false, error: "" });

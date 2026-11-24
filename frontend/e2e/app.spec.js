@@ -291,6 +291,7 @@ test("closing an issue is reflected on every screen: list, summary, overview, pl
   await expect(gas).toHaveCount(1);
   await gas.click();
   const detail = page.locator(".iss-detail");
+  await expect(detail).toContainText("What happened", { timeout: 60_000 });
   const ack = detail.getByRole("button", { name: "Acknowledge" });
   if (await ack.count()) { await ack.click(); await expect(ack).toHaveCount(0, { timeout: 30_000 }); }
   await detail.getByRole("textbox", { name: "Note" }).fill("Regulator replaced and leak tested");

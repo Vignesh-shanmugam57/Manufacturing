@@ -223,3 +223,17 @@
 @media (max-width: 1060px) { .twin-page { grid-template-columns: minmax(0, 1fr); } .twin-rail h3, .twin-rail .legend { display: none; } }
 
 .eqp-tabs { padding: 0 8px; } .eqp-tabs button { padding: 10px 8px; font-size: 12px; }
+
+/* Systems: a floating glass panel on the left of the map, so the page has no header bar above it. */
+.twin-main { position: relative; }
+.twin-main .twin-stage { min-height: 520px; }
+.twin-rail { position: absolute; z-index: 4; left: 14px; top: 62px; width: 176px; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; padding: 6px; overflow: visible;
+  background: rgba(11, 18, 38, .86); backdrop-filter: blur(8px); border: 1px solid rgba(127, 176, 255, .25); border-radius: 14px; color: #dbe7ff; }
+.twin-rail h3 { display: block; margin: 4px 8px 4px; font-size: 10.5px; color: #9db0d6; }
+.rail-item { padding: 6px 8px; font-size: 12.5px; gap: 8px; color: #cbd8f5; border-radius: 9px; box-shadow: none; }
+.rail-item:hover { background: rgba(255, 255, 255, .09); }
+.rail-item.on { background: rgba(59, 130, 246, .34); color: #fff; box-shadow: none; }
+.rail-name { flex: 1; white-space: nowrap; }
+.rail-count { min-width: 18px; padding: 0 5px; line-height: 18px; font-size: 11px; }
+.twin-rail .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; margin: 6px 4px 2px; padding: 8px 4px 2px; border-top: 1px solid rgba(255, 255, 255, .12); font-size: 10.5px; color: #9db0d6; white-space: nowrap; }
+@media (max-width: 1060px) { .twin-rail { position: static; width: auto; flex-direction: row; flex-wrap: wrap; } .twin-rail .legend { display: none; } }

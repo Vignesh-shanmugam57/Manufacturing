@@ -335,6 +335,84 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
     return labelEls[id];
   };
 
+
+  // control room: where the agent and the shift team sit. The responder starts here and walks to the equipment.
+  const CR = { x: -10, z: -31, door: -24, aisle: -20 };
+  {
+    const wall = std(0x334155, { roughness: 0.8 });
+    box(scene, 10, 4.2, 0.4, wall, CR.x, 2.1, CR.z - 3.5); box(scene, 0.4, 4.2, 7, wall, CR.x - 5, 2.1, CR.z); box(scene, 0.4, 4.2, 7, wall, CR.x + 5, 2.1, CR.z);
+    box(scene, 10, 0.3, 7, glass(0x94a3b8, 0.14), CR.x, 4.2, CR.z).castShadow = false;
+    box(scene, 4, 0.4, 0.4, std(0x38bdf8, { emissive: 0x0ea5e9, emissiveIntensity: 0.8 }), CR.x, 3.2, CR.z + 3.4);
+    const l = makeLabel("Control room"); l.position.set(CR.x, 7, CR.z); scene.add(l);
+  }
+  const resp = new THREE.Group(); resp.visible = false;
+  {
+    const suit = std(0x2563eb, { emissive: 0x1d4ed8, emissiveIntensity: 0.55, roughness: 0.5, metalness: 0.1 });
+    cyl(resp, 0.5, 0.62, 1.7, suit, 0, 1.15, 0);
+    sph(resp, 0.42, std(0xfde68a, { roughness: 0.6, metalness: 0 }), 0, 2.35, 0);
+    sph(resp, 0.5, std(0xf59e0b, { emissive: 0xb45309, emissiveIntensity: 0.4 }), 0, 2.5, 0, 1, 0.8, 1, true);
+    const halo = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.2, 32), new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+    halo.rotation.x = -Math.PI / 2; halo.position.y = 0.1; resp.add(halo);
+    scene.add(resp);
+  }
+  const respLabel = document.createElement("div"); respLabel.className = "f-resp"; respLabel.style.display = "none"; labelRoot.appendChild(respLabel);
+  const flat = (geo, color, op = 0.9) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.visible = false; scene.add(m); return m; };
+  const fx = {
+    pulse: flat(new THREE.RingGeometry(0.92, 1, 48), 0xef4444),
+    work: flat(new THREE.RingGeometry(1.2, 1.38, 40, 1, 0, Math.PI * 1.5), 0x60a5fa),
+    scan: flat(new THREE.RingGeometry(0.94, 1, 48), 0x22c55e),
+    dot: new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10), new THREE.MeshBasicMaterial({ color: 0xfbbf24 })),
+    line: new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]), new THREE.LineDashedMaterial({ color: 0xfbbf24, dashSize: 1.2, gapSize: 0.8 })),
+  };
+  fx.dot.visible = false; fx.line.visible = false; scene.add(fx.dot); scene.add(fx.line);
+  let response = null;
+  const WALK_MS = 8000;
+  function walkPath(it) {
+    const q = it.group.position, tx = q.x - 2.8, tz = q.z + 3.2;
+    return [[CR.x, CR.door], [CR.x, CR.aisle], [tx, CR.aisle], [tx, tz]];
+  }
+  function along(path, u) {
+    const seg = path.slice(1).map((p, i) => Math.hypot(p[0] - path[i][0], p[1] - path[i][1])), total = seg.reduce((a, b) => a + b, 0);
+    let d = clamp(u, 0, 1) * total;
+    for (let i = 0; i < seg.length; i += 1) {
+      if (d <= seg[i] || i === seg.length - 1) { const k = seg[i] ? Math.min(1, d / seg[i]) : 1; return [path[i][0] + (path[i + 1][0] - path[i][0]) * k, path[i][1] + (path[i + 1][1] - path[i][1]) * k, Math.atan2(path[i + 1][0] - path[i][0], path[i + 1][1] - path[i][1])]; }
+      d -= seg[i];
+    }
+    return [path[path.length - 1][0], path[path.length - 1][1], 0];
+  }
+  function updateResponse(t, w, h) {
+    const r = response, it = r && items[r.equipId];
+    Object.values(fx).forEach((o) => { o.visible = false; });
+    if (!r || !it || !r.phase) { resp.visible = false; respLabel.style.display = "none"; return; }
+    const path = walkPath(it), now = performance.now(), q = it.group.position, rad = it.spec.r;
+    let u = 0, moving = false;
+    if (r.phase === "walking") { u = clamp((now - r.walkStart) / WALK_MS, 0, 1); moving = u < 1; }
+    else if (r.phase === "working" || r.phase === "verifying") u = 1;
+    else if (r.phase === "returning") { u = 1 - clamp((now - r.returnStart) / WALK_MS, 0, 1); moving = u > 0; }
+    const [px, pz, heading] = along(path, u);
+    const hasPerson = !!r.name;
+    resp.visible = hasPerson; resp.position.set(px, 0.25 + (moving ? Math.abs(Math.sin(t * 9)) * 0.18 : 0), pz);
+    if (moving) resp.rotation.y = r.phase === "returning" ? heading + Math.PI : heading;
+    resp.children[3].material.opacity = 0.55 + 0.35 * Math.sin(t * 4);
+    const at = (o, y = 0.32) => { o.position.set(q.x, y, q.z); return o; };
+    if (["detected", "notified", "walking", "working"].includes(r.phase)) {
+      const k = (t * 0.7) % 1, p = at(fx.pulse); p.visible = true; p.scale.setScalar(rad * (1 + k * 2.4)); p.material.opacity = 0.85 * (1 - k);
+    }
+    if (r.phase === "notified" && hasPerson) {
+      const a = new THREE.Vector3(CR.x, 3, CR.door - 3), b = new THREE.Vector3(q.x, it.h + 1.5, q.z);
+      const pos = fx.line.geometry.attributes.position; pos.setXYZ(0, a.x, a.y, a.z); pos.setXYZ(1, b.x, b.y, b.z); pos.needsUpdate = true; fx.line.computeLineDistances(); fx.line.visible = true;
+      const k = (t * 0.45) % 1; fx.dot.position.lerpVectors(a, b, k); fx.dot.visible = true;
+    }
+    if (r.phase === "working" || (r.phase === "walking" && u >= 1)) { const wk = at(fx.work, 0.4); wk.visible = true; wk.scale.setScalar(rad); wk.rotation.z = t * 2.2; }
+    if (r.phase === "verifying") { const k = (t * 0.5) % 1, sc = at(fx.scan, 0.3 + k * it.h); sc.visible = true; sc.scale.setScalar(rad * 1.3); sc.material.opacity = 0.9 * (1 - 0.6 * k); }
+    if (hasPerson) {
+      tmp.set(px, 3.6, pz).project(camera);
+      if (tmp.z > 1) { respLabel.style.display = "none"; return; }
+      respLabel.style.display = "block"; respLabel.textContent = r.name;
+      respLabel.style.transform = `translate(-50%, -100%) translate(${((tmp.x + 1) / 2) * w}px, ${((1 - tmp.y) / 2) * h}px)`;
+    } else respLabel.style.display = "none";
+  }
+
   // state
   let selectedId = null, hoverId = null, filter = null, showFlows = true, alerts = [];
   let leakSet = new Set(), consumerLevel = {}, issueLevel = {};
@@ -491,6 +569,7 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
       el.innerHTML = `<b>${it.e.name}</b><span>${spec ? `${spec.label}: ${s == null ? "-" : Number(s).toFixed(spec.decimals)} ${spec.unit}` : ""}</span><em>${LEVELS[lvl]} · ${it.e.zone}${issueLevel[id] ? " · open issue" : ""}</em>`;
     });
 
+    updateResponse(t, w, h);
     renderer.render(scene, camera);
   }
   const nominals = {};
@@ -502,6 +581,7 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
     setSelected(id) { selectedId = id; },
     setFilter(u) { filter = u || null; applyFilter(); },
     setFlows(on) { showFlows = on; applyFilter(); },
+    setResponse(r) { response = r || null; },
     setAlerts(list) { alerts = list || []; recomputeAlerts(); },
     screenPos(id) {
       const it = items[id]; if (!it) return null;

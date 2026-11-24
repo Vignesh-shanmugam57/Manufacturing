@@ -3,6 +3,7 @@ import { twinApi } from "../../api/client.js";
 import { IconRefresh, Spinner } from "../icons.jsx";
 import EquipmentPanel from "./EquipmentPanel.jsx";
 import FactoryScene from "./FactoryScene.jsx";
+import LiveResponse from "./LiveResponse.jsx";
 import { UTILITIES, UTILITY_COLOR, UTILITY_LABEL, timeAgoShort } from "./labels.js";
 import { SAMPLE_ALARMS } from "./sampleAlarms.js";
 import { LevelPill, SeverityPill, SimBadge } from "./ui.jsx";
@@ -70,8 +71,9 @@ export default function DigitalTwin({ focusId = null }) {
           <button key={r.id} className={`rail-item${utility === r.id ? " on" : ""}`} onClick={() => setUtility(utility === r.id ? null : r.id)} aria-pressed={utility === r.id}>
             <span className="rail-dot" style={{ background: UTILITY_COLOR[r.id] }} />
             <span className="rail-name">{UTILITY_LABEL[r.id]}</span>
-            <i className={`ldot lv-${r.worst}`} title={LEVELS[r.worst]} />
-            {r.alarms > 0 && <span className="rail-count">{r.alarms}</span>}
+            {r.alarms > 0
+              ? <span className="rail-count" style={{ background: LEVEL_COLOR[r.worst] }} title={`${r.alarms} open, worst ${LEVELS[r.worst]}`}>{r.alarms}</span>
+              : <i className={`ldot lv-${r.worst}`} title={LEVELS[r.worst]} />}
           </button>
         ))}
         <div className="legend" aria-label="Status colours">
@@ -88,6 +90,8 @@ export default function DigitalTwin({ focusId = null }) {
             <button className={`btn ghost xs${flows ? " pressed" : ""}`} aria-pressed={flows} onClick={() => setFlows((f) => !f)}>Flow animation {flows ? "on" : "off"}</button>
           </div>
         </div>
+
+        <LiveResponse equipmentId={selected} apiRef={apiRef} />
 
         {mode === "simulation" && (
           <div className="demo-bar" aria-label="Demonstration controls">
