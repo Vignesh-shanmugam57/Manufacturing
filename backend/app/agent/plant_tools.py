@@ -145,7 +145,9 @@ def get_usage_vs_normal(utility: str) -> str:
     return _j({"utility": u["label"], "measure": f"{u['what']} ({u['unit']})", "now": now_v, "normal_range_now": [band["lo"], band["hi"]], "position": f"{where} the normal range",
                "vs_same_time_yesterday_pct": u["vs_yesterday_pct"], "peak_hour_today": u["peak_hour"],
                "last_7_days_totals": [{d["label"]: d["total"]} for d in u["days"]], "average_previous_days": u["average_prior_days"],
-               "energy_today": u["energy"], "explanation": u["note"], "related_issue": u["issue"], "source": "usage model (mock data)"})
+               "energy_today": u["energy"], "explanation": u["note"], "related_issue": u["issue"],
+               "reading_behind_the_issue": u["signal"] and {"reading": u["signal"]["label"], "now": f"{u['signal']['actual']:g} {u['signal']['unit']}", "limit": u["signal"]["expected"], "since": u["signal"]["since"]},
+               "source": "usage model (mock data)"})
 
 
 @tool

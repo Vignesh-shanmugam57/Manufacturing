@@ -162,3 +162,19 @@ def test_agent_activity_lists_what_the_agent_did_and_counts_no_equipment_actions
     assert detected["code"].startswith("ALT-") and "Sent to" in detected["text"]            # the person it was handed to is named
     assert set(a["today"]) == {"detected", "handed_off", "escalated", "verified"} and all(v >= 0 for v in a["today"].values())
     assert len(aa.activity(eng, days=30, limit=3)["feed"]) == 3
+
+
+def test_a_reading_above_its_limit_shows_up_as_such_not_as_a_usage_change(eng):
+    from app.twin import usage as use
+    eng.reload_from_db()
+    gas = use.usage(eng, "GAS")                                   # the critical gas issue is a sensor reading above its limit
+    sig = gas["signal"]
+    h = gas["now_hour"]
+    assert sig and sig["lo"] == 0 and sig["hi"] == 5 and sig["actual"] > sig["hi"] and len(sig["points"]) == h + 1
+    assert sig["points"][-1] > sig["hi"]                           # outside its limit now
+    assert any(p <= sig["hi"] for p in sig["points"][:-1]) or h == 0   # and inside it before the issue started
+    assert "outside its limit" in gas["note"] and "Usage itself is normal" in gas["note"]
+    assert gas["normal"][h]["lo"] <= gas["today"][-1] <= gas["normal"][h]["hi"]       # the usage line is not distorted
+    assert use.usage(eng, "STEAM")["signal"] is None
+    air = use.usage(eng, "COMPRESSED_AIR")                         # a real usage problem keeps its usage story and also gets its reading
+    assert air["today"][-1] > air["normal"][air["now_hour"]]["hi"] and air["signal"]["points"]

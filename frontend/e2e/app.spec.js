@@ -96,12 +96,16 @@ test("plant overview: every utility's status, usage against normal, and what nee
   await expect(page.locator(".ov-ut", { hasText: "Steam" })).toContainText("All normal");
   await expect(page.locator(".ov-ut", { hasText: "Gas" })).toContainText("open issue");
   const usage = page.locator('[aria-label="Usage"]');
-  await expect(usage.locator("svg.ov-chart")).toBeVisible({ timeout: 60_000 });
+  await expect(usage.locator("svg.ov-chart").first()).toBeVisible({ timeout: 60_000 });
+  // the worst utility (gas) is selected first: its abnormal reading is drawn against its limit, so the problem is visible
+  await expect(usage.locator("svg.ov-chart")).toHaveCount(2);
+  await expect(usage).toContainText("against its limit");
+  await expect(usage).toContainText("Usage itself is normal");
   await expect(usage).toContainText("Mock usage data");
   await page.locator(".ov-ut", { hasText: "Compressed air" }).click();
   await expect(usage).toContainText("Compressed air");
   await usage.getByRole("button", { name: "Last 7 days" }).click();
-  await expect(usage.locator("svg.ov-chart rect")).toHaveCount(7);        // one bar per day
+  await expect(usage.locator("svg.ov-chart").first().locator("rect")).toHaveCount(7);   // one bar per day
   await expect(page.locator('[aria-label="Needs attention"] li')).toHaveCount(3);
   await page.screenshot({ path: `${SHOTS}/04-overview.png`, fullPage: true });
 });

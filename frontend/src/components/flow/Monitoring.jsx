@@ -77,6 +77,39 @@ function UsageChart({ u, range }) {
   );
 }
 
+/** The reading behind an open issue against its limit, hour by hour today. Red where it is outside the limit. */
+function SignalChart({ s }) {
+  const W = 640, H = 150, L = 46, R = 10, T = 10, B = 22;
+  const pw = W - L - R, ph = H - T - B;
+  const lo = s.lo ?? Math.min(...s.points), hi = s.hi ?? Math.max(...s.points);
+  const all = [...s.points, lo, hi];
+  const pad = (Math.max(...all) - Math.min(...all)) * 0.14 || 1;
+  const y0 = Math.min(...all) - pad, y1 = Math.max(...all) + pad;
+  const X = (h) => L + (pw * h) / 23, Y = (v) => T + ph * (1 - (v - y0) / (y1 - y0));
+  const out = (v) => (s.hi != null && v > s.hi) || (s.lo != null && v < s.lo);
+  const line = (arr, from = 0) => arr.map((v, i) => `${i ? "L" : "M"}${X(i + from).toFixed(1)} ${Y(v).toFixed(1)}`).join("");
+  const runs = []; let run = [];
+  s.points.forEach((v, h) => {
+    if (out(v)) { if (!run.length && h > 0) run.push(h - 1); run.push(h); } else if (run.length) { runs.push(run); run = []; }
+  });
+  if (run.length) runs.push(run);
+  const cur = s.points.length - 1, bad = out(s.points[cur]);
+  const muted = "var(--text-muted)";
+  return (
+    <svg className="ov-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${s.label} today against its limit`}>
+      <rect x={L} y={Y(hi)} width={pw} height={Math.max(2, Y(lo) - Y(hi))} fill="var(--muted-fill)" />
+      {[lo, hi].map((v, i) => (
+        <g key={i}><line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="rgba(var(--line-rgb), .25)" strokeDasharray="3 3" /><text x={L - 6} y={Y(v) + 4} textAnchor="end" fontSize="11" fill={muted}>{Number(v.toFixed(1))}</text></g>
+      ))}
+      {[0, 6, 12, 18, 23].map((h) => <text key={h} x={X(h)} y={H - 6} textAnchor="middle" fontSize="11" fill={muted}>{String(h).padStart(2, "0")}:00</text>)}
+      <path d={line(s.points)} fill="none" stroke="var(--brand-blue)" strokeWidth="2" />
+      {runs.map((r, i) => <path key={i} d={line(s.points.slice(r[0], r[r.length - 1] + 1), r[0])} fill="none" stroke="var(--status-alarm)" strokeWidth="2.8" />)}
+      <circle cx={X(cur)} cy={Y(s.points[cur])} r="4.5" fill={bad ? "var(--status-alarm)" : "var(--brand-blue)"} />
+      <text x={Math.min(X(cur) + 8, W - 70)} y={Math.max(T + 10, Y(s.points[cur]) - 8)} fontSize="12" fontWeight="700" fill={bad ? "var(--status-alarm)" : muted}>{s.actual} {s.unit}</text>
+    </svg>
+  );
+}
+
 /**
  * Plant overview: the status of every utility right now, its usage against normal, and what needs attention.
  * Energy, production, maintenance and quality sit lower on the page, collapsed.
@@ -153,6 +186,12 @@ export default function Monitoring({ onGo }) {
                   </>
                 )}
               </div>
+              {u.signal && (
+                <>
+                  <p className="ov-signal-title"><b>{u.signal.label}</b>{u.signal.label.includes(u.signal.unit) ? "" : ` (${u.signal.unit})`} against its limit of {u.signal.expected}</p>
+                  <SignalChart s={u.signal} />
+                </>
+              )}
               <p className={`ov-note${u.issue ? " bad" : ""}`}>
                 {u.note}
                 {u.issue && onGo && <button type="button" className="btn ghost xs" onClick={() => onGo("issues")}>Open Issues</button>}

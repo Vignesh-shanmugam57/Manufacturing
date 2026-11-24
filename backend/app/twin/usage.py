@@ -30,7 +30,7 @@ MODEL = {
 DEVIATION = {
     "compressed_air_leakage": 0.18, "steam_pressure_instability": 0.12, "chilled_water_low_delta_t": 0.22,
     "cooling_tower_fan_failure": -0.25, "hvac_airflow_imbalance": -0.10, "water_leak": 0.15,
-    "gas_abnormal_consumption": 0.90, "limit_breach": 0.08,
+    "gas_abnormal_consumption": 0.90, "limit_breach": 0.0,        # a reading outside its limit says nothing about how much is used
 }
 RAMP_S = 1800.0                    # the deviation builds up over half an hour
 
@@ -69,6 +69,27 @@ def _issues_for(eng: Engine, utility: str) -> list[dict]:
         return [dict(a) for a in eng.alerts.values() if a["utility"] == utility]
 
 
+def _signal(a: dict, cur: int, today: dt.date) -> dict | None:
+    """The reading behind an open issue against its limit, hour by hour today: inside the limit until the issue started, then out."""
+    ev = (a.get("evidence") or [None])[0]
+    if not ev or ev.get("value") is None or ev["tag"] not in cat.SPEC:
+        return None
+    tag = ev["tag"]
+    lo, hi = cat.bands(tag)[0] or (None, None)
+    actual = float(ev["value"])
+    mid = (lo + hi) / 2 if lo is not None and hi is not None else hi * 0.5 if hi is not None else lo * 1.2 if lo is not None else actual * 0.8
+    span = (hi - lo) if (lo is not None and hi is not None) else (abs(mid) * 0.2 or 1.0)
+    start = dt.datetime.fromisoformat(a["created_at"])
+    dec = cat.SPEC[tag][1].decimals
+    pts = []
+    for h in range(cur + 1):
+        t = dt.datetime.combine(today, dt.time(h, 30))
+        w = 0.0 if t < start else min(1.0, (t - start).total_seconds() / RAMP_S)
+        pts.append(round(mid + 0.04 * span * math.sin(h * 1.9 + 3) + (actual - mid) * w, dec))
+    return {"tag": tag, "label": f"{ev['equipment']}: {ev['label']}", "unit": ev["unit"], "lo": lo, "hi": hi, "actual": actual,
+            "expected": cat.band_text(tag, "normal"), "points": pts, "since": a["created_at"], "level": ev.get("level", 0)}
+
+
 def usage(eng: Engine, utility: str) -> dict:
     if utility not in MODEL:
         raise ActionError(f"Unknown utility '{utility}'.")
@@ -91,13 +112,18 @@ def usage(eng: Engine, utility: str) -> dict:
     same_y = sum(yest_v[: cur + 1])
     kwh = sum(today_v) * m["kwh"] if m["kwh"] else None
     open_issues = sorted((a for a in issues if a["status"] != "VERIFIED"), key=lambda a: -iss.SEV_RANK.get(a["severity"], 0))
-    note, issue_ref = "Within the normal range.", None
+    note, issue_ref, signal = "Within the normal range.", None, None
     if open_issues:
         a = open_issues[0]
         dev = DEVIATION.get(a["type"], 0.08)
         since = dt.datetime.fromisoformat(a["created_at"])
         when = f"since {since:%H:%M}" if since.date() == today else f"since {since:%d %b}"
-        note = f"Usage is about {abs(dev) * 100:.0f}% {'above' if dev > 0 else 'below'} normal {when}. Open issue: {a['title']}."
+        signal = _signal(a, cur, today)
+        if dev == 0.0 and signal:                      # a reading outside its limit, not a change in usage
+            note = (f"{signal['label']} is {signal['actual']:g} {signal['unit']}, outside its limit of {signal['expected']} {when}. "
+                    f"Usage itself is normal. Open issue: {a['title']}.")
+        else:
+            note = f"Usage is about {abs(dev) * 100:.0f}% {'above' if dev > 0 else 'below'} normal {when}. Open issue: {a['title']}."
         issue_ref = {"id": a["id"], "title": a["title"], "severity": a["severity"]}
     return {
         "utility": utility, "label": cat.UTILITY_LABEL[utility], "what": m["what"], "unit": m["unit"], "now_hour": cur,
@@ -106,7 +132,7 @@ def usage(eng: Engine, utility: str) -> dict:
         "vs_yesterday_pct": round((sum(today_v) / same_y - 1) * 100, 1) if same_y else None,
         "peak_hour": today_v.index(max(today_v)) if today_v else None,
         "energy": {"kwh": round(kwh), "cost_inr": round(kwh * TARIFF_INR_PER_KWH), "estimated": True} if kwh else None,
-        "note": note, "issue": issue_ref, "source": "MOCK",
+        "note": note, "issue": issue_ref, "signal": signal, "source": "MOCK",
     }
 
 
