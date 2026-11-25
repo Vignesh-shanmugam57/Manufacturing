@@ -13,6 +13,15 @@ const STEPS = [
   { t: "Agent verifies", s: "Readings stay normal" },
 ];
 const ON_SITE = ["ACKNOWLEDGED", "ASSIGNED", "INVESTIGATING"];
+const FRESH_MS = 60000;         // a change this recent is still played from the start
+const started = new Map();      // event -> when the map began playing it (kept while the app is open)
+
+/** How long ago to treat an event as having started. A slow save must not eat the animation, so a recent event starts
+ *  when the map first sees it; an old one (opened later) counts from when it really happened. */
+function playedFor(key, serverElapsed) {
+  if (!started.has(key)) started.set(key, performance.now() - (serverElapsed < FRESH_MS ? 0 : serverElapsed));
+  return performance.now() - started.get(key);
+}
 
 /** The live response on the plant map: what the agent and the person are doing about the open issue on the selected equipment. */
 export default function LiveResponse({ equipmentId, apiRef }) {
@@ -42,13 +51,16 @@ export default function LiveResponse({ equipmentId, apiRef }) {
     const name = d.who?.name || null, local = performance.now();
     const common = { equipId: d.where.equipment_id, name };
     if (!d.open) {
-      const c = el(d.time.closed_at);
-      if (c == null || c > SCAN_MS + WALK_MS + 500) return null;
+      const since = el(d.time.closed_at);
+      if (since == null) return null;
+      const c = playedFor(`closed:${d.id}:${d.time.closed_at}`, since);
+      if (c > SCAN_MS + WALK_MS + 500) return null;
       return c < SCAN_MS ? { ...common, phase: "verifying", step: 5 } : { ...common, phase: "returning", returnStart: local - (c - SCAN_MS), step: 5 };
     }
     if (d.status === "OPEN") return { ...common, phase: name ? "notified" : "detected", step: name ? 1 : 0 };
     if (d.status === "CORRECTIVE_ACTION") return { ...common, phase: "verifying", step: 4 };
-    const a = el(d.time.acknowledged_at ?? d.last_event?.ts) ?? 0;
+    const ackAt = d.time.acknowledged_at ?? d.last_event?.ts;
+    const a = playedFor(`walk:${d.id}:${ackAt}`, el(ackAt) ?? 0);
     return a < WALK_MS ? { ...common, phase: "walking", walkStart: local - a, step: 2 } : { ...common, phase: "working", step: 3 };
   }, [d, tick]);                                                                                               // eslint-disable-line react-hooks/exhaustive-deps
 
