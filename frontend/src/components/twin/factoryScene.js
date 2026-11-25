@@ -48,17 +48,32 @@ function dotTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// the surroundings in each app theme; equipment, pipes and status colours are the same in both
+const PALETTE = {
+  light: { bg: 0xe8eef7, ground: 0xdbe3ef, grid1: 0xaab8cf, grid2: 0xc3cede, pad: 0xc3cede, wall: 0xa3b2ca, roof: 0x64748b, hall: 0x4f78b8, hallOp: 0.16, roofOp: 0.1, steel: 0x8292aa,
+    base: 0x93a4c1, accent: 0xb3c0d6, sky: 0xffffff, under: 0xc2cde0, hemi: 1.15, sun: 1.15, fill: 0.15, exposure: 1.0, signBg: "rgba(255,255,255,.92)", signText: "#0f172a", puff: 0x64748b },
+  dark: { bg: 0x0a1122, ground: 0x172033, grid1: 0x2a3a5e, grid2: 0x1c2a47, pad: 0x253150, wall: 0x334155, roof: 0x94a3b8, hall: 0x9db8e6, hallOp: 0.13, roofOp: 0.08, steel: 0x64748b,
+    base: 0x3b4a66, accent: 0x64748b, sky: 0x9bb7ff, under: 0x0f172a, hemi: 0.95, sun: 1.35, fill: 0.6, exposure: 1.05, signBg: "rgba(11,18,38,.72)", signText: "#dbe7ff", puff: 0xe0f2fe },
+};
+const themeName = () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+
+function drawSign(c, text, p) {
+  const x = c.getContext("2d");
+  x.clearRect(0, 0, c.width, c.height);
+  x.font = "600 44px Inter, Segoe UI, sans-serif";
+  x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillStyle = p.signBg; x.fillRect(0, 8, 512, 80);
+  x.fillStyle = p.signText; x.fillText(text, 256, 50);
+}
+
 function makeLabel(text, scale = 1) {
   const c = document.createElement("canvas");
   c.width = 512; c.height = 96;
-  const x = c.getContext("2d");
-  x.font = "600 44px Inter, Segoe UI, sans-serif";
-  x.textAlign = "center"; x.textBaseline = "middle";
-  x.fillStyle = "rgba(11,18,38,.72)"; x.fillRect(0, 8, 512, 80);
-  x.fillStyle = "#dbe7ff"; x.fillText(text, 256, 50);
+  drawSign(c, text, PALETTE[themeName()]);
   const tex = new THREE.CanvasTexture(c);
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
   s.scale.set(11 * scale, 2.06 * scale, 1);
+  s.userData.sign = { canvas: c, text };
   return s;
 }
 
@@ -192,7 +207,7 @@ const BUILD = {
 };
 
 // ------------------------------------------------------------------------------------------- the scene
-export function createFactory(container, { catalog, getState, onSelect, onHover }) {
+export function createFactory(container, { catalog, getState, onSelect, onHover, onLabelsClosed }) {
   const W = () => container.clientWidth || 800, H = () => container.clientHeight || 500;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
@@ -234,27 +249,31 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   const grid = new THREE.GridHelper(190, 38, 0x2a3a5e, 0x1c2a47); grid.position.y = 0.03; scene.add(grid);
   const padMat = std(0x253150, { roughness: 0.9, metalness: 0.1 });
+  const themed = [];                                       // [material, palette key]
+  const tone = (mat, key) => { themed.push([mat, key]); return mat; };
+  tone(ground.material, "ground"); tone(padMat, "pad");
   const pad = (x0, x1, z0, z1) => { const m = box(scene, x1 - x0, 0.25, z1 - z0, padMat, (x0 + x1) / 2, 0.12, (z0 + z1) / 2); m.castShadow = false; };
   pad(HALL.x0 - 1, HALL.x1 + 1, HALL.z0 - 1, HALL.z1 + 1);
   BUILDINGS.forEach((b) => pad(b.x0, b.x1, b.z0, b.z1));
   pad(11, 34, 17, 36); pad(49, 70, 15, 29); pad(50, 70, -13, -2);
 
-  const hallGlass = glass(0x9db8e6, 0.13), steelMat = std(0x64748b);
+  const hallGlass = tone(glass(0x9db8e6, 0.13), "hall"), steelMat = tone(std(0x64748b), "steel");
   const cx = (HALL.x0 + HALL.x1) / 2, cz = (HALL.z0 + HALL.z1) / 2, hw = HALL.x1 - HALL.x0, hd = HALL.z1 - HALL.z0;
   box(scene, hw, HALL.h, 0.3, hallGlass, cx, HALL.h / 2, HALL.z0).castShadow = false;
   box(scene, hw, HALL.h, 0.3, hallGlass, cx, HALL.h / 2, HALL.z1).castShadow = false;
   box(scene, 0.3, HALL.h, hd, hallGlass, HALL.x0, HALL.h / 2, cz).castShadow = false;
   box(scene, 0.3, HALL.h, hd, hallGlass, HALL.x1, HALL.h / 2, cz).castShadow = false;
-  box(scene, hw, 0.25, hd, glass(0x9db8e6, 0.08), cx, HALL.h, cz).castShadow = false;
+  const hallRoof = tone(glass(0x9db8e6, 0.08), "hall");
+  box(scene, hw, 0.25, hd, hallRoof, cx, HALL.h, cz).castShadow = false;
   for (let x = HALL.x0; x <= HALL.x1 + 0.1; x += 12) for (const z of [HALL.z0, HALL.z1]) box(scene, 0.55, HALL.h, 0.55, steelMat, x, HALL.h / 2, z);
   const hallLabel = makeLabel("Production Hall A + B", 1.1); hallLabel.position.set(cx, HALL.h + 3, cz); scene.add(hallLabel);
 
   BUILDINGS.forEach((b) => {
-    const w = b.x1 - b.x0, d = b.z1 - b.z0, mid = (b.x0 + b.x1) / 2, wall = std(0x334155, { roughness: 0.8 });
+    const w = b.x1 - b.x0, d = b.z1 - b.z0, mid = (b.x0 + b.x1) / 2, wall = tone(std(0x334155, { roughness: 0.8 }), "wall");
     box(scene, w, b.h, 0.4, wall, mid, b.h / 2, b.z0);
     box(scene, 0.4, b.h, d, wall, b.x0, b.h / 2, (b.z0 + b.z1) / 2);
     box(scene, 0.4, b.h, d, wall, b.x1, b.h / 2, (b.z0 + b.z1) / 2);
-    box(scene, w, 0.3, d, glass(0x94a3b8, 0.12), mid, b.h, (b.z0 + b.z1) / 2).castShadow = false;
+    box(scene, w, 0.3, d, tone(glass(0x94a3b8, 0.12), "roof"), mid, b.h, (b.z0 + b.z1) / 2).castShadow = false;
     const l = makeLabel(b.name); l.position.set(mid, b.h + 3.2, (b.z0 + b.z1) / 2); scene.add(l);
   });
   [["Cooling tower area", 60, 8, -2], ["HVAC plant", -29, 6.5, 41], ["Water plant", 23, 8, 27], ["Gas station", 59, 6, 29]].forEach(([n, x, y, z]) => { const l = makeLabel(n); l.position.set(x, y + 3, z); scene.add(l); });
@@ -263,7 +282,7 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
   const consumers = {};
   Object.entries(CONSUMERS).forEach(([name, [x, z, w, d]]) => {
     const g = new THREE.Group(); g.position.set(x + w / 2, 0.3, z + d / 2);
-    const base = std(0x3b4a66), accent = std(0x64748b);
+    const base = tone(std(0x3b4a66), "base"), accent = tone(std(0x64748b), "accent");
     const clean = name === "Clean Room B";
     if (clean) box(g, w, 3.6, d, glass(0xbfdbfe, 0.2), 0, 1.8, 0);
     box(g, w, 0.7, d * (clean ? 0.5 : 0.7), base, 0, 0.35, 0);
@@ -339,9 +358,9 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
   // control room: where the agent and the shift team sit. The responder starts here and walks to the equipment.
   const CR = { x: -10, z: -31, door: -24, aisle: -20 };
   {
-    const wall = std(0x334155, { roughness: 0.8 });
+    const wall = tone(std(0x334155, { roughness: 0.8 }), "wall");
     box(scene, 10, 4.2, 0.4, wall, CR.x, 2.1, CR.z - 3.5); box(scene, 0.4, 4.2, 7, wall, CR.x - 5, 2.1, CR.z); box(scene, 0.4, 4.2, 7, wall, CR.x + 5, 2.1, CR.z);
-    box(scene, 10, 0.3, 7, glass(0x94a3b8, 0.14), CR.x, 4.2, CR.z).castShadow = false;
+    box(scene, 10, 0.3, 7, tone(glass(0x94a3b8, 0.14), "roof"), CR.x, 4.2, CR.z).castShadow = false;
     box(scene, 4, 0.4, 0.4, std(0x38bdf8, { emissive: 0x0ea5e9, emissiveIntensity: 0.8 }), CR.x, 3.2, CR.z + 3.4);
     const l = makeLabel("Control room"); l.position.set(CR.x, 7, CR.z); scene.add(l);
   }
@@ -426,6 +445,34 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
     } else respLabel.style.display = "none";
   }
 
+  let grid2 = grid;
+  const hemi = scene.children.find((o) => o.isHemisphereLight);
+  function applyTheme() {
+    const p = PALETTE[themeName()];
+    scene.background.setHex(p.bg); scene.fog.color.setHex(p.bg); renderer.toneMappingExposure = p.exposure;
+    hemi.color.setHex(p.sky); hemi.groundColor.setHex(p.under); hemi.intensity = p.hemi; sun.intensity = p.sun; fill.intensity = p.fill;
+    themed.forEach(([m, key]) => m.color.setHex(p[key]));
+    hallGlass.opacity = p.hallOp; hallRoof.opacity = p.roofOp;
+    scene.remove(grid2); grid2.geometry.dispose(); grid2.material.dispose();
+    grid2 = new THREE.GridHelper(190, 38, p.grid1, p.grid2); grid2.position.y = 0.03; scene.add(grid2);
+    scene.traverse((o) => { const sign = o.userData?.sign; if (sign) { drawSign(sign.canvas, sign.text, p); o.material.map.needsUpdate = true; } });
+    pipes.forEach((q) => q.puff?.material.color.setHex(p.puff));
+  }
+  const themeWatch = new MutationObserver(applyTheme);
+  themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  applyTheme();
+
+  // name pop-ups: switched off altogether, or closed one at a time
+  let showLabels = true;
+  const closed = new Set();
+  const onLabelClose = (ev) => {
+    const id = ev.target.closest?.("[data-close]")?.dataset.close;
+    if (!id) return;
+    ev.preventDefault(); ev.stopPropagation();
+    closed.add(id); onLabelsClosed?.(closed.size);
+  };
+  labelRoot.addEventListener("pointerdown", onLabelClose);
+
   // state
   let selectedId = null, hoverId = null, filter = null, showFlows = true, alerts = [];
   let leakSet = new Set(), consumerLevel = {}, issueLevel = {};
@@ -493,7 +540,15 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
   dom.addEventListener("pointermove", onMove); dom.addEventListener("pointerdown", onDown);
   dom.addEventListener("pointerup", onUp); dom.addEventListener("dblclick", onDbl); dom.addEventListener("pointerleave", onLeave);
 
-  const ro = new ResizeObserver(() => { renderer.setSize(W(), H()); camera.aspect = W() / H(); camera.updateProjectionMatrix(); });
+  // when the tickets drawer covers the right side, move the picture left so the plant stays centred in what is visible
+  let inset = 0;
+  const applyInset = () => {
+    const on = inset && W() > 900;
+    camera.zoom = on ? clamp(1 - inset / W() + 0.07, 0.72, 1) : 1;           // and step back so all of it fits
+    if (on) camera.setViewOffset(W(), H(), inset / 2, 0, W(), H()); else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  };
+  const ro = new ResizeObserver(() => { renderer.setSize(W(), H()); camera.aspect = W() / H(); camera.updateProjectionMatrix(); applyInset(); });
   ro.observe(container);
 
   // animation
@@ -567,7 +622,7 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
     const w = W(), h = H();
     Object.values(items).forEach((it) => {
       const id = it.e.id, lvl = levelOf(id);
-      const show = id === selectedId || id === hoverId || (lvl >= 2 && lvl <= 3 && !it.dim);
+      const show = showLabels && (id === hoverId || (!closed.has(id) && (id === selectedId || (lvl >= 2 && lvl <= 3 && !it.dim))));
       const el = show ? labelFor(id) : labelEls[id];
       if (!el) return;
       if (!show) { el.style.display = "none"; return; }
@@ -579,7 +634,8 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
       el.style.display = "block";
       el.style.transform = `translate(-50%, -100%) translate(${((tmp.x + 1) / 2) * w}px, ${((1 - tmp.y) / 2) * h}px)`;
       el.className = `f-label lv${lvl}${id === selectedId ? " sel" : ""}`;
-      el.innerHTML = `<b>${it.e.name}</b><span>${spec ? `${spec.label}: ${s == null ? "-" : Number(s).toFixed(spec.decimals)} ${spec.unit}` : ""}</span><em>${LEVELS[lvl]} · ${it.e.zone}${issueLevel[id] ? " · open issue" : ""}</em>`;
+      const html = `<button type="button" class="f-x" data-close="${id}" aria-label="Close label for ${it.e.name}">×</button><b>${it.e.name}</b><span>${spec ? `${spec.label}: ${s == null ? "-" : Number(s).toFixed(spec.decimals)} ${spec.unit}` : ""}</span><em>${LEVELS[lvl]} · ${it.e.zone}${issueLevel[id] ? " · open issue" : ""}</em>`;
+      if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }          // rewrite only on change, so the close button stays clickable
     });
 
     updateResponse(t, w, h);
@@ -595,6 +651,9 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
     setFilter(u) { filter = u || null; applyFilter(); },
     setFlows(on) { showFlows = on; applyFilter(); },
     setResponse(r) { response = r || null; },
+    setLabels(on) { showLabels = !!on; },
+    setInset(px) { inset = px || 0; applyInset(); },
+    restoreLabels() { closed.clear(); onLabelsClosed?.(0); },
     setAlerts(list) { alerts = list || []; recomputeAlerts(); },
     screenPos(id) {
       const it = items[id]; if (!it) return null;
@@ -609,7 +668,7 @@ export function createFactory(container, { catalog, getState, onSelect, onHover 
       flyTo([p.x + 15, 13, p.z + 20], [p.x, 2.2, p.z], 1.1);
     },
     dispose() {
-      running = false; cancelAnimationFrame(raf); ro.disconnect();
+      running = false; cancelAnimationFrame(raf); ro.disconnect(); themeWatch.disconnect();
       ["pointermove", "pointerdown", "pointerup", "dblclick", "pointerleave"].forEach((n) => dom.removeEventListener(n, { pointermove: onMove, pointerdown: onDown, pointerup: onUp, dblclick: onDbl, pointerleave: onLeave }[n]));
       controls.dispose();
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.map?.dispose(); m.dispose(); }); });

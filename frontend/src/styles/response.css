@@ -1,15 +1,19 @@
-/* Live response strip on the plant map. */
-.lr { position: absolute; left: 204px; top: 62px; width: min(620px, calc(100% - 218px)); z-index: 3; padding: 10px 12px; border-radius: 14px; background: rgba(11, 18, 38, .88); backdrop-filter: blur(8px); border: 1px solid rgba(127, 176, 255, .25); color: #dbe7ff; display: flex; flex-direction: column; gap: 8px; }
-.lr-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; } .lr-head span { color: #9db0d6; }
-.lr-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.lr-steps li { padding: 6px 8px; border-radius: 9px; background: rgba(255, 255, 255, .06); color: #9db0d6; border: 1px solid transparent; }
-.lr-steps b { display: block; font-size: 12px; font-weight: 650; } .lr-steps small { font-size: 11px; opacity: .85; }
+/* Live response strip on the plant map. It sits in the dock at the bottom of the stage, so the 3D view above stays clear. */
+.lr { container-type: inline-size; width: 100%; max-width: 780px;padding: 8px 12px 10px; border-radius: 14px; background: rgba(11, 18, 38, .88); backdrop-filter: blur(8px); border: 1px solid rgba(127, 176, 255, .25); color: #dbe7ff; display: flex; flex-direction: column; gap: 6px; }
+.lr-head { display: flex; align-items: center; gap: 10px; font-size: 13px; } .lr-head span { flex: 1; min-width: 0; color: #9db0d6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lr-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.lr-steps li { padding: 5px 8px; border-radius: 8px; background: rgba(255, 255, 255, .06); color: #9db0d6; border: 1px solid transparent; text-align: center; }
+.lr-steps b { display: block; font-size: 11.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lr-steps li.on { background: rgba(59, 130, 246, .28); color: #fff; border-color: rgba(96, 165, 250, .7); }
 .lr-steps li.done { background: rgba(34, 197, 94, .18); color: #bbf7d0; }
-.lr-say { margin: 0; font-size: 13px; line-height: 1.45; color: #e5edff; }
-.lr-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.lr-acts input { flex: 1; min-width: 180px; padding: 6px 10px; border-radius: 9px; font-size: 12.5px; color: #e5edff; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); }
+.lr-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.lr-say { flex: 1 1 260px; margin: 0; font-size: 12.5px; line-height: 1.4; color: #e5edff; }
+.lr-acts { flex: 0 1 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.lr-acts input { width: 230px; max-width: 100%; padding: 6px 10px; border-radius: 9px; font-size: 12.5px; color: #e5edff; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); }
 .lr-err { color: #fca5a5; font-size: 12px; }
 .f-resp { position: absolute; left: 0; top: 0; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 650; color: #fff; background: #2563eb; white-space: nowrap; pointer-events: none; }
-@media (max-width: 720px) { .lr-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .lr-steps small { display: none; } }
-@media (max-width: 1060px) { .lr { left: 14px; top: 58px; width: calc(100% - 28px); } }
+/* a narrow strip (small window, or the tickets panel taking the room): only the current step keeps its name */
+@container (max-width: 560px) {
+  .lr-steps { display: flex; } .lr-steps li { flex: 1 0 auto; } .lr-steps li.on { flex-grow: 4; } .lr-steps li:not(.on) span { display: none; }
+  .lr-acts { flex-basis: 100%; justify-content: flex-start; margin-left: 0; } .lr-acts input { flex: 1; width: auto; }
+}

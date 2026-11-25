@@ -5,7 +5,7 @@ import "../../styles/response.css";
 
 const WALK_MS = 8000;           // the demo walk: short enough to show, long enough to follow
 const SCAN_MS = 3000;           // the agent's check after a fix is accepted
-const STEPS = [
+const STEPS = [                  // s shows on hover
   { t: "Agent detects", s: "Reading out of range" },
   { t: "Owner notified", s: "By role and zone" },
   { t: "Person goes", s: "After Acknowledge" },
@@ -24,7 +24,7 @@ function playedFor(key, serverElapsed) {
 }
 
 /** The live response on the plant map: what the agent and the person are doing about the open issue on the selected equipment. */
-export default function LiveResponse({ equipmentId, apiRef }) {
+export default function LiveResponse({ equipmentId, apiRef, hidden = false, onClose }) {
   const open = useTwinResource("/issues?status=open");
   const mine = (open.data?.issues || []).find((i) => i.where.equipment_id === equipmentId) || null;
   const [tracked, setTracked] = useState(null);
@@ -78,7 +78,7 @@ export default function LiveResponse({ equipmentId, apiRef }) {
     else if (now === "working" && was === "walking") apiRef.current?.focus(r.equipId);
   }, [r?.phase]);                                                                                              // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!d || !r) return null;
+  if (!d || !r || hidden) return null;            // hidden: the 3D animation keeps playing, only the strip is closed
   const who = d.who?.name ? `${d.who.name}${d.who.role ? `, ${d.who.role}` : ""}` : "the shift team";
   const say = {
     detected: `The agent found ${d.what.actual} (expected ${d.what.expected}). Nobody is assigned yet.`,
@@ -98,24 +98,27 @@ export default function LiveResponse({ equipmentId, apiRef }) {
 
   return (
     <section className="lr" aria-label="Live response">
-      <div className="lr-head"><b>Live response</b><span>{d.code} · {d.where.equipment_name}</span></div>
+      <div className="lr-head"><b>Live response</b><span>{d.code} · {d.where.equipment_name}</span>
+        <button type="button" className="hud-x" onClick={onClose} aria-label="Close live response">×</button></div>
       <ol className="lr-steps">
-        {STEPS.map((x, i) => <li key={x.t} className={i < r.step ? "done" : i === r.step ? "on" : ""}><b>{i + 1} {x.t}</b><small>{x.s}</small></li>)}
+        {STEPS.map((x, i) => <li key={x.t} title={x.s} className={i < r.step ? "done" : i === r.step ? "on" : ""}><b>{i + 1}<span> {x.t}</span></b></li>)}
       </ol>
-      <p className="lr-say" role="status">{say}</p>
-      {d.open && (
-        <div className="lr-acts">
-          {st === "OPEN" && <button type="button" className="btn primary xs" disabled={!!busy} onClick={() => act("acknowledge")}>Acknowledge</button>}
-          {ON_SITE.includes(st) && (
-            <>
-              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What was done to fix it" aria-label="Fix note" />
-              <button type="button" className="btn primary xs" disabled={!note.trim() || !!busy} onClick={() => act("corrective_action", { comment: note })}>Record the fix</button>
-            </>
-          )}
-          {st === "CORRECTIVE_ACTION" && <button type="button" className="btn primary xs" disabled={!!busy} onClick={() => act("verify")}>Verify with telemetry</button>}
-          {err && <span className="lr-err" role="alert">{err}</span>}
-        </div>
-      )}
+      <div className="lr-foot">
+        <p className="lr-say" role="status">{say}</p>
+        {d.open && (
+          <div className="lr-acts">
+            {st === "OPEN" && <button type="button" className="btn primary xs" disabled={!!busy} onClick={() => act("acknowledge")}>Acknowledge</button>}
+            {ON_SITE.includes(st) && (
+              <>
+                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What was done to fix it" aria-label="Fix note" />
+                <button type="button" className="btn primary xs" disabled={!note.trim() || !!busy} onClick={() => act("corrective_action", { comment: note })}>Record the fix</button>
+              </>
+            )}
+            {st === "CORRECTIVE_ACTION" && <button type="button" className="btn primary xs" disabled={!!busy} onClick={() => act("verify")}>Verify with telemetry</button>}
+            {err && <span className="lr-err" role="alert">{err}</span>}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

@@ -11,6 +11,11 @@ import { LEVELS, LEVEL_COLOR, SEVERITY_LEVEL, useTwin, useTwinResource } from ".
 
 const SCENARIO_PHASE = { ramping: "fault developing", active: "fault active", recovering: "recovering after corrective action" };
 
+// the panels that float over the 3D plant; each can be closed and reopened, and the choice is remembered
+const PANELS = [["systems", "Systems"], ["response", "Response"], ["labels", "Labels"], ["demo", "Demo"], ["tickets", "Tickets"]];
+const ALL_OPEN = Object.fromEntries(PANELS.map(([k]) => [k, true]));
+const loadPanels = () => { try { return { ...ALL_OPEN, ...JSON.parse(localStorage.getItem("mapPanels") || "{}") }; } catch { return ALL_OPEN; } };
+
 /** The 3D plant: filter by utility, inspect equipment, watch alarms, and run the demonstration scenarios. */
 export default function DigitalTwin({ focusId = null }) {
   const catalog = useTwin((s) => s.catalog);
@@ -24,6 +29,20 @@ export default function DigitalTwin({ focusId = null }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const apiRef = useRef(null);
+  const [show, setShow] = useState(loadPanels);
+  const [full, setFull] = useState(false);
+  const [closedLabels, setClosedLabels] = useState(0);
+  const toggle = (key, on = !show[key]) => {
+    setShow((s) => ({ ...s, [key]: on }));
+    if (key === "labels" && on) apiRef.current?.restoreLabels();
+  };
+  useEffect(() => { try { localStorage.setItem("mapPanels", JSON.stringify(show)); } catch { /* private browsing */ } }, [show]);
+  useEffect(() => {
+    if (!full) return undefined;
+    const esc = (e) => { if (e.key === "Escape") setFull(false); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [full]);
   const alertsRes = useTwinResource("/alerts?status=active");
   const active = alertsRes.data?.alerts || [];
 
@@ -60,10 +79,11 @@ export default function DigitalTwin({ focusId = null }) {
   }, [focusId]);
 
   return (
-    <div className="twin-page">
+    <div className={`twin-page${show.tickets ? " side-open" : ""}${full ? " full" : ""}`}>
       <div className="twin-main">
+      {show.systems && (
       <nav className="twin-rail" aria-label="Utility systems">
-        <h3>Systems</h3>
+        <div className="hud-head"><h3>Systems</h3><button type="button" className="hud-x" onClick={() => toggle("systems", false)} aria-label="Close systems panel">×</button></div>
         <button className={`rail-item${!utility ? " on" : ""}`} onClick={() => setUtility(null)}>
           <span className="rail-dot all" /> Full factory
         </button>
@@ -80,20 +100,31 @@ export default function DigitalTwin({ focusId = null }) {
           {[0, 1, 2, 3, 4].map((l) => <span key={l}><i style={{ background: LEVEL_COLOR[l] }} />{LEVELS[l]}</span>)}
         </div>
       </nav>
+      )}
 
       <section className="twin-stage" aria-label="3D factory">
-        <FactoryScene selectedId={selected} onSelect={select} utility={utility} flows={flows} alerts={active} apiRef={apiRef} />
+        <FactoryScene selectedId={selected} onSelect={select} utility={utility} flows={flows} alerts={active} apiRef={apiRef} labels={show.labels} onLabelsClosed={setClosedLabels} inset={show.tickets ? 350 : 0} />
         <div className="stage-top">
           <SimBadge />
           <div className="stage-tools">
+            <div className="hud-toggles" role="group" aria-label="Show or hide panels">
+              {PANELS.map(([key, label]) => (
+                <button key={key} type="button" className={`btn ghost xs${show[key] ? " pressed" : ""}`} aria-pressed={show[key]} onClick={() => toggle(key)}>
+                  {label}{key === "tickets" && active.length > 0 ? ` (${active.length})` : ""}
+                </button>
+              ))}
+            </div>
+            {show.labels && closedLabels > 0 && <button type="button" className="btn ghost xs" onClick={() => apiRef.current?.restoreLabels()}>Reopen closed labels ({closedLabels})</button>}
+            <button type="button" className={`btn ghost xs${full ? " pressed" : ""}`} aria-pressed={full} onClick={() => setFull((f) => !f)}>{full ? "Exit full screen (Esc)" : "Full screen"}</button>
             <button className="btn ghost xs" onClick={() => apiRef.current?.resetCamera()}><IconRefresh width={13} height={13} /> Reset view</button>
             <button className={`btn ghost xs${flows ? " pressed" : ""}`} aria-pressed={flows} onClick={() => setFlows((f) => !f)}>Flow animation {flows ? "on" : "off"}</button>
           </div>
         </div>
 
-        <LiveResponse equipmentId={selected} apiRef={apiRef} />
+        <div className="stage-dock">
+        <LiveResponse equipmentId={selected} apiRef={apiRef} hidden={!show.response} onClose={() => toggle("response", false)} />
 
-        {mode === "simulation" && (
+        {mode === "simulation" && show.demo && (
           <div className="demo-bar" aria-label="Demonstration controls">
             <span className="demo-tag">DEMO</span>
             <select value={pick} onChange={(e) => setPick(e.target.value)} disabled={!!scenario?.active} aria-label="Fault to simulate">
@@ -112,12 +143,16 @@ export default function DigitalTwin({ focusId = null }) {
               {scenario?.active ? `${scenario.title}: ${SCENARIO_PHASE[scenario.phase] || scenario.phase}` : "Normal operation"}
             </span>
             {err && <span className="form-error">{err}</span>}
+            <button type="button" className="hud-x" onClick={() => toggle("demo", false)} aria-label="Close demo controls">×</button>
           </div>
         )}
+        </div>
       </section>
       </div>
 
+      {show.tickets && (
       <aside className="twin-side">
+        <button type="button" className="side-hide" onClick={() => toggle("tickets", false)}>Close panel ×</button>
         {selected ? (
           <EquipmentPanel id={selected} onClose={() => select(null)} onFocus={(id) => apiRef.current?.focus(id)} />
         ) : (
@@ -161,6 +196,10 @@ export default function DigitalTwin({ focusId = null }) {
           </div>
         )}
       </aside>
+      )}
+      {!show.tickets && (
+        <button type="button" className="side-tab" onClick={() => toggle("tickets", true)}>Tickets{active.length > 0 ? ` (${active.length})` : ""}</button>
+      )}
     </div>
   );
 }

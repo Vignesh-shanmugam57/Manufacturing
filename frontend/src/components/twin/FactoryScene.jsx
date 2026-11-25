@@ -3,7 +3,9 @@ import { state, useTwin } from "../../lib/twin.js";
 import { createFactory } from "./factoryScene.js";
 
 /** The interactive 3D plant. All animation reads the live store directly, so React does not re-render per frame. */
-export default function FactoryScene({ selectedId, onSelect, utility, flows = true, alerts, apiRef }) {
+export default function FactoryScene({ selectedId, onSelect, utility, flows = true, alerts, apiRef, labels = true, onLabelsClosed, inset = 0 }) {
+  const closedRef = useRef(onLabelsClosed);
+  closedRef.current = onLabelsClosed;
   const host = useRef(null);
   const scene = useRef(null);
   const onSelectRef = useRef(onSelect);
@@ -18,6 +20,7 @@ export default function FactoryScene({ selectedId, onSelect, utility, flows = tr
       api = createFactory(host.current, {
         catalog, getState: () => state,
         onSelect: (id) => onSelectRef.current?.(id),
+        onLabelsClosed: (n) => closedRef.current?.(n),
       });
     } catch (e) {
       setFailed(e.message || "The 3D view could not start.");
@@ -33,6 +36,8 @@ export default function FactoryScene({ selectedId, onSelect, utility, flows = tr
   useEffect(() => { scene.current?.setFilter(utility); }, [utility, catalog]);
   useEffect(() => { scene.current?.setFlows(flows); }, [flows, catalog]);
   useEffect(() => { scene.current?.setAlerts(alerts); }, [alerts, catalog]);
+  useEffect(() => { scene.current?.setLabels(labels); }, [labels, catalog]);
+  useEffect(() => { scene.current?.setInset(inset); }, [inset, catalog]);
 
   return (
     <div className="factory" ref={host} data-testid="factory-3d">
