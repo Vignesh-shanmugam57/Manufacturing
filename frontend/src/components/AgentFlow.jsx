@@ -7,7 +7,7 @@ import StatusPill from "./StatusPill.jsx";
 import { IconBell, IconCheck, IconDatabase, IconGauge, IconPlay, IconScan, IconTool, Spinner } from "./icons.jsx";
 
 // The six steps of the Utilities Management Agent (from the agent blueprint), each tied to what the code really does
-// and to the tools the agent can call.
+// and to the related chat tools (backend/app/agent). Keep the text in step with that code.
 const STAGES = [
   {
     id: "collect", icon: <IconDatabase />, title: "Collect telemetry",
@@ -15,7 +15,7 @@ const STAGES = [
     does: "Collects utility meter and equipment telemetry: flow, pressure, temperature and alarms, plus machine state and downtime events.",
     how: "Every row is validated, bad rows are skipped and reported, repeats are ignored, and the rest is stored in PostgreSQL in one transaction.",
     tools: ["get_data_overview"],
-    input: "Database and file import today. SCADA/BMS, PLC and IoT feeds are the next connectors.",
+    input: "File upload, database, REST API and CSV link connections today. SCADA/BMS, PLC and IoT feeds are added per project.",
     output: "Clean, de-duplicated readings and a data-quality report.",
   },
   {
@@ -46,22 +46,22 @@ const STAGES = [
     output: "Downtime verdict per utility and ranked efficiency actions with an owner.",
   },
   {
-    id: "alert", icon: <IconBell />, title: "Alert facilities / maintenance",
-    blurb: "Advisory alerts with an owner",
-    does: "Raises an advisory alert for each real finding and assigns it to facilities or maintenance.",
-    how: "A monitoring scan turns findings into de-duplicated alerts, so the same problem is never raised twice while it is open.",
-    tools: ["run_monitoring_scan", "raise_alert", "list_alerts"],
-    input: "Findings from the previous steps.",
-    output: "Open alerts with severity, details and a recommended inspection.",
+    id: "alert", icon: <IconBell />, title: "Alert the person on shift",
+    blurb: "Live issues with an owner",
+    does: "Shows the live issues the monitoring has raised, each with its severity and the person who has it.",
+    how: "The monitoring engine checks the live readings every second against engineering limits and seven known fault patterns. A problem is raised once and handed to a person on shift. This step only reads.",
+    tools: ["list_open_issues", "get_issue"],
+    input: "Live equipment readings (simulated in this proof of concept) and the team roster.",
+    output: "Open issues with severity, probable cause, what to do and an owner.",
   },
   {
     id: "verify", icon: <IconCheck />, title: "Track and verify",
     blurb: "Return to normal, confirmed by data",
-    does: "Tracks inspection through acknowledged and resolved, then checks that the utility really returned to normal.",
-    how: "People set Acknowledged and Resolved. VERIFIED is set only by a telemetry check (default 48 hours), never by hand.",
-    tools: ["verify_return_to_normal"],
-    input: "Alert history and fresh telemetry.",
-    output: "Alerts closed with evidence that the problem is gone.",
+    does: "Follows each issue from acknowledged to fix recorded, then checks that the equipment really returned to normal.",
+    how: "People acknowledge and record the fix on Issues or the Plant map. An issue closes only when its readings have stayed inside their limits for 20 seconds. Nobody can mark it verified by hand.",
+    tools: ["get_issue", "get_issue_history"],
+    input: "The issue timeline and fresh live readings.",
+    output: "Closed issues with proof from the readings that the problem is gone.",
   },
 ];
 
@@ -154,7 +154,7 @@ const VIEWS = [
 ];
 const ACTIONS = [() => VIEWS[0](), () => VIEWS[1]()];                      // Run analysis only reads
 
-// Step i of a run: analysis for 1-4, the writing actions for 5 and 6.
+// Step i of a run: analysis for 1-4, the live issues for 5 and 6.
 const runStep = (i) => (i < ANALYSIS.length ? ANALYSIS[i](true) : ACTIONS[i - ANALYSIS.length]());
 
 function buildReport(res, seconds) {
@@ -165,7 +165,7 @@ function buildReport(res, seconds) {
   const bits = [
     found.length && plural(found.length, "abnormal pattern"),
     links.length && plural(links.length, "possible downtime link"),
-    open && plural(open, "open alert"),
+    open && plural(open, "open issue"),
   ].filter(Boolean);
   // the live issues from this run: alerts the scan raised, plus the open ones, each once
   const seen = new Set();
@@ -468,7 +468,7 @@ export default function AgentFlow({ onAlertsChanged }) {
     if (report) document.getElementById("agent-report")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [report]);
 
-  // Opening the page analyses the stored data. This only reads: nothing is written until Run agent is pressed.
+  // Opening the page analyses the stored data. This page only reads and never writes.
   useEffect(() => {
     let current = true;
     Promise.allSettled([...ANALYSIS, ...VIEWS].map((fn) => fn(false))).then((out) => {
@@ -550,7 +550,7 @@ export default function AgentFlow({ onAlertsChanged }) {
     <div className="page flow-page">
       <header className="page-head">
         <div>
-          <h2>Agent flow</h2>
+          <h2>History analysis</h2>
           <p className="muted">
             Six steps from plant data to a verified action. The first four analyse the stored history; the last two show the
             live issues. Opening this page reads the data and writes nothing. Run analysis walks through all six steps and
@@ -620,7 +620,7 @@ export default function AgentFlow({ onAlertsChanged }) {
           <div><h4>Produces</h4><p>{stage.output}</p></div>
         </div>
         <div className="tool-chips">
-          <h4>Tools it calls</h4>
+          <h4>Related chat tools</h4>
           {stage.tools.map((t) => <span key={t} className="tool-chip" title={t}>{toolLabel(t)} <code>{t}</code></span>)}
         </div>
       </section>

@@ -22,6 +22,12 @@ const TOOL_LABELS = {
   verify_return_to_normal: "Verifying return to normal",
   get_schema: "Reading the data schema",
   run_sql: "Querying the data",
+  get_plant_status: "Checking the plant status",
+  list_open_issues: "Listing the open issues",
+  get_issue: "Reading one issue",
+  get_team_on_shift: "Checking who is on shift",
+  get_usage_vs_normal: "Comparing usage with normal",
+  get_issue_history: "Reading the issue history",
 };
 
 export const toolLabel = (name) => TOOL_LABELS[name] || name;
